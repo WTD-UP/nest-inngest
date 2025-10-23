@@ -1,6 +1,6 @@
 {
-  "name": "nest-inngest",
-  "version": "1.3.2",
+  "name": "@up-inc/nest-inngest",
+  "version": "1.4.0",
   "description": "Strongly typed Inngest module for Nest.js 💪😾",
   "keywords": [
     "nest",
@@ -9,7 +9,7 @@
     "event driven",
     "background jobs"
   ],
-  "repository": "https://github.com/thawankeane/nest-inngest",
+  "repository": "https://github.com/WTD-UP/nest-inngest",
   "license": "MIT",
   "author": "Thawan Keane <thawankeane@gmail.com>",
   "main": "dist/index.js",
