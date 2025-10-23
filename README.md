@@ -100,6 +100,64 @@ An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js p
 
    ```
 
+## Multiple Triggers
+
+You can now define multiple triggers for a single Inngest function handler, allowing it to respond to different events, cron schedules, or manual invocations:
+
+```ts
+import { Controller } from "@nestjs/common";
+import { NestInngest } from "nest-inngest";
+
+import { OrdersInngest } from "../lib/inngest"
+
+@Controller("orders")
+export class OrdersController {
+   constructor(private readonly ordersService: OrdersService) {}
+
+   @OrdersInngest.Function({
+     id: "orders-multi-handler"
+   })
+   @OrdersInngest.Trigger(
+     { event: "orders/order.created" },
+     { cron: "0 2 * * *" }, // Runs at 2 AM daily
+   )
+   public async handleOrderEvents(
+     { event, step }: NestInngest.context<typeof OrdersInngest, "orders/order.created"> // 👈 Union type for multiple events
+   ) {
+     if (event.name === "orders/order.created") {
+       // Handle order creation event
+       console.log("Processing new order:", event.data);
+       await this.ordersService.sendOrderNotification(event.data.id);
+     } else {
+       // Handle cron execution (nightly reconciliation)
+       console.log("Running nightly order reconciliation");
+       await this.ordersService.reconcileOrders();
+     }
+
+     return { success: true }
+   }
+}
+```
+
+### Stacking Multiple Decorators
+
+You can also stack multiple `@Trigger` decorators to achieve the same result:
+
+```ts
+@OrdersInngest.Function({
+  id: "orders-multi-handler"
+})
+@OrdersInngest.Trigger({ event: "orders/order.created" })
+@OrdersInngest.Trigger({ cron: "0 2 * * *" })
+public async handleOrderEvents(
+  { event, step }: NestInngest.context<typeof OrdersInngest, "orders/order.created">
+) {
+  // Same implementation as above
+}
+```
+
+Both approaches are equivalent and will register the same triggers for your function.
+
 ## Roadmap
 
 - [x] Add a global Nest module using the `.forRoot` pattern.

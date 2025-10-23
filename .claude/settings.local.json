@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(zsh -c \"npm run build\")",
+      "Bash(zsh -c \"git log --oneline -10\")",
+      "Bash(zsh -c \"git remote -v\")",
+      "Bash(zsh -c \"cat package.json | grep -A 5 -B 5 version\")",
+      "Bash(zsh -c \"ls -la dist/ 2>/dev/null | head -20 || echo ''No dist folder''\")",
+      "Bash(zsh -c \"git remote add upstream https://github.com/thawankeane/nest-inngest.git 2>&1 || echo ''Remote might already exist''\")",
+      "Bash(zsh -c \"git log upstream/main --oneline -5 2>&1 || git log upstream/master --oneline -5 2>&1\")",
+      "Bash(zsh -c:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

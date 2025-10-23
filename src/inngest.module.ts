@@ -2,7 +2,6 @@ import { Inject, MiddlewareConsumer, NestModule } from "@nestjs/common";
 
 import { DiscoveryModule, DiscoveryService } from "@golevelup/nestjs-discovery";
 import { Inngest } from "inngest";
-import { AnyInngest } from "inngest/components/Inngest";
 import { serve } from "inngest/express";
 
 export const INNGEST_KEY = "INNGEST" as const;
@@ -10,11 +9,30 @@ export const INNGEST_OPTIONS = "INNGEST_OPTIONS" as const;
 export const INNGEST_FUNCTION = "INNGEST_FUNCTION" as const;
 export const INNGEST_TRIGGER = "INNGEST_TRIGGER" as const;
 
+type TriggerConfig = NonNullable<Parameters<Inngest.Any["createFunction"]>[1]>;
+
+/**
+ * Deduplicates trigger configurations while preserving order
+ */
+function dedupeTriggers(triggers: TriggerConfig[]): TriggerConfig[] {
+  const seen = new Set<string>();
+
+  return triggers.filter((trigger) => {
+    const key = JSON.stringify(trigger);
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
 export interface InngestModuleOptions {
   /**
    * Inngest client instance
    */
-  inngest: AnyInngest;
+  inngest: Inngest.Any;
   /**
    * Path that inngest will be listening
    * @default "/api/inngest"
@@ -62,17 +80,28 @@ export class InngestModule implements NestModule {
     ]);
 
     const handlers = functions.flat().map((func) => {
-      const trigger = triggers
+      const triggerMeta = triggers
         .flat()
-        .find(
+        .filter(
           (each) =>
-            each.discoveredMethod.handler == func.discoveredMethod.handler,
-        );
+            each.discoveredMethod.handler === func.discoveredMethod.handler,
+        )
+        .flatMap((each) => each.meta as TriggerConfig[])
+        .filter(Boolean);
+
+      const uniqueTriggers = dedupeTriggers(triggerMeta);
+
+      const triggerArg =
+        uniqueTriggers.length === 0
+          ? undefined
+          : uniqueTriggers.length === 1
+            ? uniqueTriggers[0]
+            : uniqueTriggers;
 
       return this.inngest.createFunction(
         // @ts-ignore
         func.meta,
-        trigger?.meta,
+        triggerArg,
         func.discoveredMethod.handler.bind(
           func.discoveredMethod.parentClass.instance,
         ),
