@@ -20,6 +20,10 @@ An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js p
 
 2. In your app.module.ts or a similar file, add a new item to the `imports` array.
 
+   ### HTTP Serve Mode (Default)
+
+   Traditional HTTP endpoint where Inngest calls your application:
+
    ```ts
    // app.module.ts
    import { Module } from "@nestjs/core";
@@ -40,6 +44,41 @@ An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js p
    })
    export class AppModule {}
    ```
+
+   ### Connect Mode (WebSocket)
+
+   Persistent WebSocket connection with lower latency - your application connects to Inngest:
+
+   ```ts
+   // app.module.ts
+   import { Module } from "@nestjs/core";
+
+   import { InngestModule } from "nest-inngest";
+
+   import { inngest } from "../lib/inngest";
+
+   @Module({
+     imports: [
+       InngestModule.forRoot({
+         inngest,
+         mode: "connect",
+         connectOptions: {
+           instanceId: "my-worker-1", // Optional: unique instance ID
+           maxWorkerConcurrency: 10,  // Optional: max concurrent steps
+         },
+       }),
+     ],
+     controllers: [],
+     providers: [],
+   })
+   export class AppModule {}
+   ```
+
+   **Connect Mode Benefits:**
+   - ✅ Lower latency (no HTTP round-trips)
+   - ✅ Elastic horizontal scaling
+   - ✅ Better support for long-running steps
+   - ✅ Firewall-friendly (outbound connection only)
 
 3. (Optional) In your `inngest.ts` file, include the `schemas` using your preferred method.
 
@@ -158,6 +197,64 @@ public async handleOrderEvents(
 
 Both approaches are equivalent and will register the same triggers for your function.
 
+## Advanced Features
+
+### Checkpointing
+
+Enable checkpointing for near-zero inter-step latency by executing steps eagerly on the client side:
+
+```ts
+// Enable globally on the Inngest client
+export const inngest = new Inngest({
+  id: "orders",
+  checkpointing: true,
+});
+
+// OR enable per-function
+@OrdersInngest.Function({
+  id: "fast-order-handler",
+  checkpointing: true,
+})
+@OrdersInngest.Trigger({ event: "orders/order.created" })
+public async handleOrder({ event, step }) {
+  // This function uses checkpointing for faster execution
+  await step.run("process-order", async () => {
+    // Process order
+  });
+}
+```
+
+### Realtime Updates
+
+Stream updates from your functions to users:
+
+```ts
+@OrdersInngest.Function({
+  id: "order-processor"
+})
+@OrdersInngest.Trigger({ event: "orders/order.created" })
+public async processOrder({ event, step }) {
+  // Send realtime updates to users
+  await step.sendEvent("order.progress", {
+    name: "orders/order.progress",
+    data: { orderId: event.data.id, status: "processing" }
+  });
+  
+  // Continue processing...
+}
+```
+
+## Deployment Modes Comparison
+
+| Feature | Serve Mode (HTTP) | Connect Mode (WebSocket) |
+|---------|------------------|-------------------------|
+| Connection | Inbound (Inngest → App) | Outbound (App → Inngest) |
+| Latency | Higher | Lower |
+| Firewall | Requires open port | Outbound only |
+| Scaling | Horizontal | Elastic horizontal |
+| Setup | Simple | Simple |
+| Best For | Traditional deployments | High-performance, containerized apps |
+
 ## Roadmap
 
 - [x] Add a global Nest module using the `.forRoot` pattern.
@@ -166,6 +263,8 @@ Both approaches are equivalent and will register the same triggers for your func
   - [x] `Trigger` decorator
 - [x] Add typing helpers.
   - [x] Helper for typing the `Context`
+- [x] Support for Inngest Connect mode (WebSocket)
+- [x] Support for latest Inngest features (Checkpointing, Realtime)
 - [ ] Add automated tests.
 - [ ] Add automatic documentation in the AsyncAPI spec. (TBD)
 - [ ] Add Github actions with changelogs and auto releases

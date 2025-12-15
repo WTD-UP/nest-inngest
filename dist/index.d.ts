@@ -1,6 +1,6 @@
 import { Inngest, GetEvents } from 'inngest';
 import { Context } from 'inngest/types';
-import { NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { NestModule, OnApplicationShutdown, MiddlewareConsumer } from '@nestjs/common';
 import { DiscoveryService, DiscoveryModule } from '@golevelup/nestjs-discovery';
 
 type ExtractInngest<T> = T extends NestInngest<infer I> ? I : never;
@@ -26,21 +26,52 @@ declare const INNGEST_KEY: "INNGEST";
 declare const INNGEST_OPTIONS: "INNGEST_OPTIONS";
 declare const INNGEST_FUNCTION: "INNGEST_FUNCTION";
 declare const INNGEST_TRIGGER: "INNGEST_TRIGGER";
+/**
+ * Configuration options for Connect mode
+ */
+interface InngestConnectOptions {
+    /**
+     * Unique identifier for this worker instance
+     * @default Generated UUID
+     */
+    instanceId?: string;
+    /**
+     * Maximum number of concurrent steps this worker can execute
+     * @default 10
+     */
+    maxWorkerConcurrency?: number;
+    /**
+     * Additional connect options
+     */
+    [key: string]: unknown;
+}
 interface InngestModuleOptions {
     /**
      * Inngest client instance
      */
     inngest: Inngest.Any;
     /**
-     * Path that inngest will be listening
+     * Deployment mode
+     * - 'serve': HTTP endpoint (default) - Inngest calls your app via HTTP
+     * - 'connect': WebSocket connection - Your app connects to Inngest via WebSocket
+     * @default "serve"
+     */
+    mode?: "serve" | "connect";
+    /**
+     * Path that inngest will be listening (only used in 'serve' mode)
      * @default "/api/inngest"
      */
     path?: string;
+    /**
+     * Connect mode configuration (only used in 'connect' mode)
+     */
+    connectOptions?: InngestConnectOptions;
 }
-declare class InngestModule implements NestModule {
+declare class InngestModule implements NestModule, OnApplicationShutdown {
     private readonly discover;
     private readonly inngest;
     private readonly options;
+    private workerConnection?;
     constructor(discover: DiscoveryService, inngest: Inngest, options: Omit<InngestModuleOptions, "inngest">);
     static forRoot({ inngest, ...options }: InngestModuleOptions): {
         imports: (typeof DiscoveryModule)[];
@@ -52,18 +83,31 @@ declare class InngestModule implements NestModule {
             provide: "INNGEST_OPTIONS";
             useValue: {
                 /**
-                 * Path that inngest will be listening
+                 * Deployment mode
+                 * - 'serve': HTTP endpoint (default) - Inngest calls your app via HTTP
+                 * - 'connect': WebSocket connection - Your app connects to Inngest via WebSocket
+                 * @default "serve"
+                 */
+                mode?: "serve" | "connect";
+                /**
+                 * Path that inngest will be listening (only used in 'serve' mode)
                  * @default "/api/inngest"
                  */
                 path?: string;
+                /**
+                 * Connect mode configuration (only used in 'connect' mode)
+                 */
+                connectOptions?: InngestConnectOptions;
             };
         })[];
         exports: never[];
         global: boolean;
     };
+    private discoverFunctions;
     configure(consumer: MiddlewareConsumer): Promise<void>;
+    onApplicationShutdown(signal?: string): Promise<void>;
 }
 
 type ExtractClientOptions<T> = T extends Inngest<infer I> ? I : never;
 
-export { ExtractClientOptions, ExtractInngest, INNGEST_FUNCTION, INNGEST_KEY, INNGEST_OPTIONS, INNGEST_TRIGGER, InngestModule, InngestModuleOptions, NestInngest };
+export { ExtractClientOptions, ExtractInngest, INNGEST_FUNCTION, INNGEST_KEY, INNGEST_OPTIONS, INNGEST_TRIGGER, InngestConnectOptions, InngestModule, InngestModuleOptions, NestInngest };

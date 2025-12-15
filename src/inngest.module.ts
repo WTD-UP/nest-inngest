@@ -1,7 +1,8 @@
-import { Inject, MiddlewareConsumer, NestModule } from "@nestjs/common";
+import { Inject, MiddlewareConsumer, NestModule, OnApplicationShutdown } from "@nestjs/common";
 
 import { DiscoveryModule, DiscoveryService } from "@golevelup/nestjs-discovery";
 import { Inngest } from "inngest";
+import { connect } from "inngest/connect";
 import { serve } from "inngest/express";
 
 export const INNGEST_KEY = "INNGEST" as const;
@@ -28,19 +29,52 @@ function dedupeTriggers(triggers: TriggerConfig[]): TriggerConfig[] {
   });
 }
 
+/**
+ * Configuration options for Connect mode
+ */
+export interface InngestConnectOptions {
+  /**
+   * Unique identifier for this worker instance
+   * @default Generated UUID
+   */
+  instanceId?: string;
+  /**
+   * Maximum number of concurrent steps this worker can execute
+   * @default 10
+   */
+  maxWorkerConcurrency?: number;
+  /**
+   * Additional connect options
+   */
+  [key: string]: unknown;
+}
+
 export interface InngestModuleOptions {
   /**
    * Inngest client instance
    */
   inngest: Inngest.Any;
   /**
-   * Path that inngest will be listening
+   * Deployment mode
+   * - 'serve': HTTP endpoint (default) - Inngest calls your app via HTTP
+   * - 'connect': WebSocket connection - Your app connects to Inngest via WebSocket
+   * @default "serve"
+   */
+  mode?: "serve" | "connect";
+  /**
+   * Path that inngest will be listening (only used in 'serve' mode)
    * @default "/api/inngest"
    */
   path?: string;
+  /**
+   * Connect mode configuration (only used in 'connect' mode)
+   */
+  connectOptions?: InngestConnectOptions;
 }
 
-export class InngestModule implements NestModule {
+export class InngestModule implements NestModule, OnApplicationShutdown {
+  private workerConnection?: { close: () => Promise<void> };
+
   constructor(
     @Inject(DiscoveryService) private readonly discover: DiscoveryService,
     @Inject(INNGEST_KEY) private readonly inngest: Inngest,
@@ -67,7 +101,7 @@ export class InngestModule implements NestModule {
     };
   }
 
-  public async configure(consumer: MiddlewareConsumer) {
+  private async discoverFunctions() {
     const [functions, triggers] = await Promise.all([
       Promise.all([
         this.discover.controllerMethodsWithMetaAtKey(INNGEST_FUNCTION),
@@ -79,7 +113,7 @@ export class InngestModule implements NestModule {
       ]),
     ]);
 
-    const handlers = functions.flat().map((func) => {
+    return functions.flat().map((func) => {
       const triggerMeta = triggers
         .flat()
         .filter(
@@ -107,14 +141,40 @@ export class InngestModule implements NestModule {
         ),
       );
     });
+  }
 
-    consumer
-      .apply(
-        serve({
+  public async configure(consumer: MiddlewareConsumer) {
+    const mode = this.options.mode ?? "serve";
+    const handlers = await this.discoverFunctions();
+
+    if (mode === "connect") {
+      // Connect mode: establish persistent WebSocket connection
+      const connection = await connect({
+        apps: [{
           client: this.inngest,
           functions: handlers,
-        }),
-      )
-      .forRoutes(this.options.path ?? "/api/inngest");
+        }],
+        ...this.options.connectOptions,
+      });
+
+      this.workerConnection = connection;
+    } else {
+      // Serve mode: traditional HTTP endpoint
+      consumer
+        .apply(
+          serve({
+            client: this.inngest,
+            functions: handlers,
+          }),
+        )
+        .forRoutes(this.options.path ?? "/api/inngest");
+    }
+  }
+
+  async onApplicationShutdown(signal?: string) {
+    // Gracefully shutdown Connect mode connection if active
+    if (this.workerConnection) {
+      await this.workerConnection.close();
+    }
   }
 }

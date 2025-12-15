@@ -34,6 +34,7 @@ module.exports = __toCommonJS(src_exports);
 var import_common = require("@nestjs/common");
 var import_nestjs_discovery = require("@golevelup/nestjs-discovery");
 var import_inngest = require("inngest");
+var import_connect = require("inngest/connect");
 var import_express = require("inngest/express");
 function _ts_decorate(decorators, target, key, desc) {
   var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -80,6 +81,7 @@ var InngestModule = class _InngestModule {
   discover;
   inngest;
   options;
+  workerConnection;
   constructor(discover, inngest, options) {
     this.discover = discover;
     this.inngest = inngest;
@@ -105,7 +107,7 @@ var InngestModule = class _InngestModule {
       global: true
     };
   }
-  async configure(consumer) {
+  async discoverFunctions() {
     const [functions, triggers] = await Promise.all([
       Promise.all([
         this.discover.controllerMethodsWithMetaAtKey(INNGEST_FUNCTION),
@@ -116,7 +118,7 @@ var InngestModule = class _InngestModule {
         this.discover.providerMethodsWithMetaAtKey(INNGEST_TRIGGER)
       ])
     ]);
-    const handlers = functions.flat().map((func) => {
+    return functions.flat().map((func) => {
       const triggerMeta = triggers.flat().filter((each) => each.discoveredMethod.handler === func.discoveredMethod.handler).flatMap((each) => each.meta).filter(Boolean);
       const uniqueTriggers = dedupeTriggers(triggerMeta);
       const triggerArg = uniqueTriggers.length === 0 ? void 0 : uniqueTriggers.length === 1 ? uniqueTriggers[0] : uniqueTriggers;
@@ -127,10 +129,32 @@ var InngestModule = class _InngestModule {
         func.discoveredMethod.handler.bind(func.discoveredMethod.parentClass.instance)
       );
     });
-    consumer.apply((0, import_express.serve)({
-      client: this.inngest,
-      functions: handlers
-    })).forRoutes(this.options.path ?? "/api/inngest");
+  }
+  async configure(consumer) {
+    const mode = this.options.mode ?? "serve";
+    const handlers = await this.discoverFunctions();
+    if (mode === "connect") {
+      const connection = await (0, import_connect.connect)({
+        apps: [
+          {
+            client: this.inngest,
+            functions: handlers
+          }
+        ],
+        ...this.options.connectOptions
+      });
+      this.workerConnection = connection;
+    } else {
+      consumer.apply((0, import_express.serve)({
+        client: this.inngest,
+        functions: handlers
+      })).forRoutes(this.options.path ?? "/api/inngest");
+    }
+  }
+  async onApplicationShutdown(signal) {
+    if (this.workerConnection) {
+      await this.workerConnection.close();
+    }
   }
 };
 InngestModule = _ts_decorate([
