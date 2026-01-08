@@ -1,6 +1,6 @@
 {
   "name": "@up-inc/nest-inngest",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Strongly typed Inngest module for Nest.js 💪😾",
   "keywords": [
     "nest",

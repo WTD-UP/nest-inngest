@@ -5,6 +5,24 @@ import { Inngest } from "inngest";
 import { connect } from "inngest/connect";
 import { serve } from "inngest/express";
 
+/**
+ * Error thrown when the Inngest connection fails.
+ */
+export class InngestConnectionError extends Error {
+  readonly cause?: Error;
+  
+  constructor(message: string, cause?: Error) {
+    super(message);
+    this.name = 'InngestConnectionError';
+    this.cause = cause;
+    
+    // Maintain proper stack trace in V8
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, InngestConnectionError);
+    }
+  }
+}
+
 export const INNGEST_KEY = "INNGEST" as const;
 export const INNGEST_OPTIONS = "INNGEST_OPTIONS" as const;
 export const INNGEST_FUNCTION = "INNGEST_FUNCTION" as const;
@@ -80,7 +98,14 @@ export class InngestModule implements NestModule, OnApplicationShutdown {
     @Inject(INNGEST_KEY) private readonly inngest: Inngest,
     @Inject(INNGEST_OPTIONS)
     private readonly options: Omit<InngestModuleOptions, "inngest">,
-  ) {}
+  ) {
+    // Make injected dependencies non-enumerable to prevent serialization issues
+    // See: https://github.com/nestjs/nest/issues/12738
+    Object.defineProperty(this, 'discover', { enumerable: false });
+    Object.defineProperty(this, 'inngest', { enumerable: false });
+    Object.defineProperty(this, 'options', { enumerable: false });
+    Object.defineProperty(this, 'workerConnection', { enumerable: false });
+  }
 
   static forRoot({ inngest, ...options }: InngestModuleOptions) {
     return {
@@ -149,15 +174,31 @@ export class InngestModule implements NestModule, OnApplicationShutdown {
 
     if (mode === "connect") {
       // Connect mode: establish persistent WebSocket connection
-      const connection = await connect({
-        apps: [{
-          client: this.inngest,
-          functions: handlers,
-        }],
-        ...this.options.connectOptions,
-      });
+      // CRITICAL: Disable Inngest's signal handling to let NestJS manage shutdown
+      console.log('[Inngest] Connecting to Inngest...');
 
-      this.workerConnection = connection;
+      try {
+        const connection = await connect({
+          apps: [{
+            client: this.inngest,
+            functions: handlers,
+          }],
+          // Disable automatic signal handling - NestJS will call onApplicationShutdown
+          handleShutdownSignals: [],
+          ...this.options.connectOptions,
+        });
+
+        this.workerConnection = connection;
+        
+        console.log(`[Inngest] WebSocket connected successfully (ID: ${connection.connectionId})`);
+        console.log(`[Inngest] Connection state: ${connection.state}`);
+      } catch (error) {
+        throw new InngestConnectionError(
+          `Failed to connect to Inngest: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
+          `Check your network connection and Inngest configuration.`,
+          error instanceof Error ? error : undefined
+        );
+      }
     } else {
       // Serve mode: traditional HTTP endpoint
       consumer
@@ -174,7 +215,24 @@ export class InngestModule implements NestModule, OnApplicationShutdown {
   async onApplicationShutdown(signal?: string) {
     // Gracefully shutdown Connect mode connection if active
     if (this.workerConnection) {
-      await this.workerConnection.close();
+      try {
+        console.log(`[Inngest] Shutting down WebSocket connection (signal: ${signal || 'unknown'})`);
+        
+        // Close with timeout to prevent hanging
+        await Promise.race([
+          this.workerConnection.close(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Connection close timeout')), 10000)
+          ),
+        ]);
+        
+        console.log('[Inngest] WebSocket connection closed successfully');
+      } catch (error) {
+        console.error('[Inngest] Error closing WebSocket connection:', error);
+        // Force cleanup even if close fails
+      } finally {
+        this.workerConnection = undefined;
+      }
     }
   }
 }

@@ -25,6 +25,7 @@ __export(src_exports, {
   INNGEST_KEY: () => INNGEST_KEY,
   INNGEST_OPTIONS: () => INNGEST_OPTIONS,
   INNGEST_TRIGGER: () => INNGEST_TRIGGER,
+  InngestConnectionError: () => InngestConnectionError,
   InngestModule: () => InngestModule,
   NestInngest: () => NestInngest
 });
@@ -58,6 +59,20 @@ function _ts_param(paramIndex, decorator) {
   };
 }
 __name(_ts_param, "_ts_param");
+var InngestConnectionError = class _InngestConnectionError extends Error {
+  static {
+    __name(this, "InngestConnectionError");
+  }
+  cause;
+  constructor(message, cause) {
+    super(message);
+    this.name = "InngestConnectionError";
+    this.cause = cause;
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, _InngestConnectionError);
+    }
+  }
+};
 var INNGEST_KEY = "INNGEST";
 var INNGEST_OPTIONS = "INNGEST_OPTIONS";
 var INNGEST_FUNCTION = "INNGEST_FUNCTION";
@@ -86,6 +101,18 @@ var InngestModule = class _InngestModule {
     this.discover = discover;
     this.inngest = inngest;
     this.options = options;
+    Object.defineProperty(this, "discover", {
+      enumerable: false
+    });
+    Object.defineProperty(this, "inngest", {
+      enumerable: false
+    });
+    Object.defineProperty(this, "options", {
+      enumerable: false
+    });
+    Object.defineProperty(this, "workerConnection", {
+      enumerable: false
+    });
   }
   static forRoot({ inngest, ...options }) {
     return {
@@ -134,16 +161,25 @@ var InngestModule = class _InngestModule {
     const mode = this.options.mode ?? "serve";
     const handlers = await this.discoverFunctions();
     if (mode === "connect") {
-      const connection = await (0, import_connect.connect)({
-        apps: [
-          {
-            client: this.inngest,
-            functions: handlers
-          }
-        ],
-        ...this.options.connectOptions
-      });
-      this.workerConnection = connection;
+      console.log("[Inngest] Connecting to Inngest...");
+      try {
+        const connection = await (0, import_connect.connect)({
+          apps: [
+            {
+              client: this.inngest,
+              functions: handlers
+            }
+          ],
+          // Disable automatic signal handling - NestJS will call onApplicationShutdown
+          handleShutdownSignals: [],
+          ...this.options.connectOptions
+        });
+        this.workerConnection = connection;
+        console.log(`[Inngest] WebSocket connected successfully (ID: ${connection.connectionId})`);
+        console.log(`[Inngest] Connection state: ${connection.state}`);
+      } catch (error) {
+        throw new InngestConnectionError(`Failed to connect to Inngest: ${error instanceof Error ? error.message : "Unknown error"}. Check your network connection and Inngest configuration.`, error instanceof Error ? error : void 0);
+      }
     } else {
       consumer.apply((0, import_express.serve)({
         client: this.inngest,
@@ -153,7 +189,18 @@ var InngestModule = class _InngestModule {
   }
   async onApplicationShutdown(signal) {
     if (this.workerConnection) {
-      await this.workerConnection.close();
+      try {
+        console.log(`[Inngest] Shutting down WebSocket connection (signal: ${signal || "unknown"})`);
+        await Promise.race([
+          this.workerConnection.close(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Connection close timeout")), 1e4))
+        ]);
+        console.log("[Inngest] WebSocket connection closed successfully");
+      } catch (error) {
+        console.error("[Inngest] Error closing WebSocket connection:", error);
+      } finally {
+        this.workerConnection = void 0;
+      }
     }
   }
 };
@@ -212,6 +259,7 @@ var NestInngest = class _NestInngest {
   INNGEST_KEY,
   INNGEST_OPTIONS,
   INNGEST_TRIGGER,
+  InngestConnectionError,
   InngestModule,
   NestInngest
 });

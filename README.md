@@ -63,8 +63,8 @@ An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js p
          inngest,
          mode: "connect",
          connectOptions: {
-           instanceId: "my-worker-1", // Optional: unique instance ID
-           maxWorkerConcurrency: 10,  // Optional: max concurrent steps
+           instanceId: "my-worker-1",       // Optional: unique instance ID
+           maxWorkerConcurrency: 10,        // Optional: max concurrent steps
          },
        }),
      ],
@@ -79,6 +79,25 @@ An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js p
    - ✅ Elastic horizontal scaling
    - ✅ Better support for long-running steps
    - ✅ Firewall-friendly (outbound connection only)
+
+   **⚠️ CRITICAL for Connect Mode: Enable Shutdown Hooks**
+
+   To prevent zombie WebSocket connections, you **MUST** enable NestJS shutdown hooks in your `main.ts`:
+
+   ```ts
+   // main.ts
+   async function bootstrap() {
+     const app = await NestFactory.create(AppModule);
+     
+     // REQUIRED for Connect mode to properly close WebSocket connections
+     app.enableShutdownHooks();
+     
+     await app.listen(3000);
+   }
+   bootstrap();
+   ```
+
+   Without `enableShutdownHooks()`, your WebSocket connections will become zombies when the app restarts or shuts down, remaining connected indefinitely in the Inngest dashboard.
 
 3. (Optional) In your `inngest.ts` file, include the `schemas` using your preferred method.
 
@@ -254,6 +273,120 @@ public async processOrder({ event, step }) {
 | Scaling | Horizontal | Elastic horizontal |
 | Setup | Simple | Simple |
 | Best For | Traditional deployments | High-performance, containerized apps |
+
+## Troubleshooting
+
+### Connection Fails on Startup (Connect Mode)
+
+**Problem**: Your application fails to start due to Inngest connection issues.
+
+**Symptoms**:
+```
+[Inngest] Connecting to Inngest...
+Error: Failed to connect to Inngest: ...
+```
+
+**Handling Connection Errors**:
+
+This library exports an `InngestConnectionError` that you can catch and handle:
+
+```ts
+import { InngestConnectionError } from 'nest-inngest';
+
+// In your main.ts or bootstrap function, you may want to handle these:
+async function bootstrap() {
+  try {
+    const app = await NestFactory.create(AppModule);
+    app.enableShutdownHooks();
+    await app.listen(3000);
+  } catch (error) {
+    if (error instanceof InngestConnectionError) {
+      console.error('Inngest connection failed:', error.message);
+      // Decide whether to exit or continue without Inngest
+      process.exit(1);
+    }
+    throw error;
+  }
+}
+```
+
+**Root Causes & Solutions**:
+
+1. **Network Issues / Firewall Blocking**:
+   - Inngest Connect uses outbound WebSocket connections
+   - Check firewall rules allow outbound HTTPS (443)
+   - Verify DNS resolution for Inngest endpoints
+   - Test network connectivity: `curl -v https://inn.gs`
+
+2. **Wrong Inngest Environment/API Key**:
+   - Verify your Inngest client configuration
+   - Check `INNGEST_EVENT_KEY` or `INNGEST_SIGNING_KEY` environment variables
+   - Ensure you're connecting to the correct Inngest environment
+
+3. **Behind Corporate Proxy**:
+   - Configure Node.js proxy settings:
+     ```bash
+     export HTTP_PROXY=http://proxy.company.com:8080
+     export HTTPS_PROXY=http://proxy.company.com:8080
+     ```
+
+**Quick Debug**:
+```ts
+// Temporarily switch to serve mode to test if it's a Connect-specific issue
+InngestModule.forRoot({
+  inngest,
+  mode: "serve",  // Use HTTP mode instead
+  path: "/api/inngest",
+})
+```
+
+### Zombie WebSocket Connections (Connect Mode)
+
+**Problem**: After deploying or restarting your app, old worker connections remain active in Inngest dashboard.
+
+**Root Cause**: NestJS shutdown hooks are not enabled, so the WebSocket connection isn't closed properly on shutdown.
+
+**Solution**:
+
+1. **Enable shutdown hooks in your `main.ts`** (Required):
+   ```ts
+   async function bootstrap() {
+     const app = await NestFactory.create(AppModule);
+     app.enableShutdownHooks(); // CRITICAL!
+     await app.listen(3000);
+   }
+   ```
+
+2. **Verify logs show proper shutdown**:
+   ```
+   [Inngest] WebSocket connected (ID: wkr_abc123)
+   ...
+   [Inngest] Shutting down WebSocket connection (signal: SIGTERM)
+   [Inngest] WebSocket connection closed successfully
+   ```
+
+3. **Clean up existing zombie connections**:
+   - Unfortunately, Inngest doesn't provide a UI button to terminate connections
+   - Zombie connections will eventually timeout (typically after 60-90 seconds of no heartbeat)
+   - To force cleanup: restart your app WITH `enableShutdownHooks()` enabled
+   - The new instance will have a different connection ID, and old connections will timeout
+
+**For Docker/Kubernetes**:
+- Ensure SIGTERM signals are properly forwarded to Node.js
+- Set appropriate `terminationGracePeriodSeconds` (minimum 30s recommended)
+- Use `preStop` hooks if needed:
+  ```yaml
+  lifecycle:
+    preStop:
+      exec:
+        command: ["/bin/sh", "-c", "sleep 15"]
+  ```
+
+**Prevention Checklist**:
+- ✅ `app.enableShutdownHooks()` is called
+- ✅ Connect mode uses `handleShutdownSignals: []` (library handles this)
+- ✅ Container orchestration forwards SIGTERM properly
+- ✅ Graceful shutdown timeout is adequate (10-30 seconds)
 
 ## Roadmap
 

@@ -22,6 +22,13 @@ declare namespace NestInngest {
     type context<TInngest, TEvent extends keyof GetEvents<ExtractInngest<TInngest>> & string> = Context<ExtractInngest<TInngest>, TEvent>;
 }
 
+/**
+ * Error thrown when the Inngest connection fails.
+ */
+declare class InngestConnectionError extends Error {
+    readonly cause?: Error;
+    constructor(message: string, cause?: Error);
+}
 declare const INNGEST_KEY: "INNGEST";
 declare const INNGEST_OPTIONS: "INNGEST_OPTIONS";
 declare const INNGEST_FUNCTION: "INNGEST_FUNCTION";
@@ -110,4 +117,4 @@ declare class InngestModule implements NestModule, OnApplicationShutdown {
 
 type ExtractClientOptions<T> = T extends Inngest<infer I> ? I : never;
 
-export { ExtractClientOptions, ExtractInngest, INNGEST_FUNCTION, INNGEST_KEY, INNGEST_OPTIONS, INNGEST_TRIGGER, InngestConnectOptions, InngestModule, InngestModuleOptions, NestInngest };
+export { ExtractClientOptions, ExtractInngest, INNGEST_FUNCTION, INNGEST_KEY, INNGEST_OPTIONS, INNGEST_TRIGGER, InngestConnectOptions, InngestConnectionError, InngestModule, InngestModuleOptions, NestInngest };
