@@ -114,11 +114,11 @@ export class InngestModule implements NestModule, OnApplicationShutdown {
       providers: [
         {
           provide: INNGEST_KEY,
-          useValue: inngest,
+          useFactory: () => inngest,
         },
         {
           provide: INNGEST_OPTIONS,
-          useValue: options,
+          useFactory: () => options,
         },
       ],
       exports: [],

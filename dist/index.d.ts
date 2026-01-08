@@ -85,10 +85,10 @@ declare class InngestModule implements NestModule, OnApplicationShutdown {
         module: typeof InngestModule;
         providers: ({
             provide: "INNGEST";
-            useValue: Inngest.Any;
+            useFactory: () => Inngest.Any;
         } | {
             provide: "INNGEST_OPTIONS";
-            useValue: {
+            useFactory: () => {
                 /**
                  * Deployment mode
                  * - 'serve': HTTP endpoint (default) - Inngest calls your app via HTTP
