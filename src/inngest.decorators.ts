@@ -1,12 +1,17 @@
-import { GetEvents, Inngest } from "inngest";
-import { Context } from "inngest/types";
+import {
+  type GetStepTools,
+  type HandlerWithTriggers,
+  type InngestFunction,
+  Inngest,
+} from "inngest";
 
 import { INNGEST_FUNCTION, INNGEST_TRIGGER } from "@/inngest.module";
 
-// Type for trigger configuration
-type TriggerConfig = NonNullable<Parameters<Inngest.Any["createFunction"]>[1]>;
+// Type for trigger configuration — in v4, triggers are part of the config object (arg[0])
+type TriggerConfig = InngestFunction.Trigger<string>;
 
-export type ExtractInngest<T> = T extends NestInngest<infer I> ? I : never;
+// Extract the config type for createFunction (first arg, without triggers)
+type FunctionConfig = Omit<Parameters<Inngest.Any["createFunction"]>[0], "triggers">;
 
 export class NestInngest<TInngest extends Inngest.Any> {
   constructor(protected readonly inngest: TInngest) {}
@@ -17,8 +22,9 @@ export class NestInngest<TInngest extends Inngest.Any> {
 
   /**
    * Inngest function decorator
+   * Accepts function config WITHOUT triggers (triggers come from @Trigger decorator or triggers property)
    */
-  public Function(args: Parameters<TInngest["createFunction"]>[0]) {
+  public Function(args: FunctionConfig | Parameters<TInngest["createFunction"]>[0]) {
     return (
       target: Object,
       key: string | symbol,
@@ -30,10 +36,11 @@ export class NestInngest<TInngest extends Inngest.Any> {
   }
 
   /**
-   * Inngest function trigger decorator
-   * Supports single or multiple triggers via variadic arguments or stacked decorators
+   * Inngest function trigger decorator (syntactic sugar)
+   * Supports single or multiple triggers via variadic arguments or stacked decorators.
+   * Triggers collected here are merged into the config at discovery time.
    */
-  public Trigger(...configs: Parameters<TInngest["createFunction"]>[1][]) {
+  public Trigger(...configs: TriggerConfig[]) {
     return (
       target: Object,
       key: string | symbol,
@@ -42,11 +49,9 @@ export class NestInngest<TInngest extends Inngest.Any> {
       const existing =
         (Reflect.getMetadata(INNGEST_TRIGGER, descriptor.value) as TriggerConfig[] | undefined) ?? [];
 
-      const normalized = configs.flat();
-
       Reflect.defineMetadata(
         INNGEST_TRIGGER,
-        [...existing, ...normalized],
+        [...existing, ...configs],
         descriptor.value,
       );
 
@@ -56,8 +61,17 @@ export class NestInngest<TInngest extends Inngest.Any> {
 }
 
 export namespace NestInngest {
+  /**
+   * Type helper for handler context, derived from trigger types.
+   *
+   * Usage with eventType objects:
+   *   NestInngest.context<typeof inngest, [typeof orderCreated]>
+   *
+   * Usage with multiple triggers:
+   *   NestInngest.context<typeof inngest, [typeof orderCreated, typeof orderUpdated]>
+   */
   export type context<
-    TInngest,
-    TEvent extends keyof GetEvents<ExtractInngest<TInngest>> & string,
-  > = Context<ExtractInngest<TInngest>, TEvent>;
+    TInngest extends Inngest.Any,
+    TTriggers extends readonly any[],
+  > = Parameters<HandlerWithTriggers<GetStepTools<TInngest>, TTriggers>>[0];
 }

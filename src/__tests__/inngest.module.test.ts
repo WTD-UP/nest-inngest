@@ -26,10 +26,9 @@ describe("InngestModule - Multi-Trigger Support", () => {
   });
 
   describe("Trigger aggregation", () => {
-    it("should handle single trigger", async () => {
+    it("should handle single trigger via @Trigger decorator", async () => {
       const handler = function testHandler() {};
 
-      // Set metadata for single trigger
       Reflect.defineMetadata(INNGEST_TRIGGER, [{ event: "test/event" }], handler);
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn" }, handler);
 
@@ -62,9 +61,45 @@ describe("InngestModule - Multi-Trigger Support", () => {
 
       await module.configure(mockConsumer as any);
 
+      // v4: 2-arg call with triggers merged into config
       expect(createFunctionSpy).toHaveBeenCalledWith(
-        { id: "test-fn" },
-        { event: "test/event" }, // Single trigger passed directly
+        { id: "test-fn", triggers: { event: "test/event" } },
+        expect.any(Function)
+      );
+    });
+
+    it("should handle triggers in @Function config (v4 native)", async () => {
+      const handler = function testHandler() {};
+
+      // No @Trigger metadata — triggers are in the @Function config
+      Reflect.defineMetadata(INNGEST_FUNCTION, {
+        id: "test-fn",
+        triggers: [{ event: "test/event" }],
+      }, handler);
+
+      const functionMethods = [{
+        discoveredMethod: {
+          handler,
+          parentClass: { instance: {} },
+        },
+        meta: { id: "test-fn", triggers: [{ event: "test/event" }] },
+      }];
+
+      vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
+        if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
+        if (key === INNGEST_TRIGGER) return Promise.resolve([]);
+        return Promise.resolve([]);
+      });
+
+      vi.mocked(discoveryService.providerMethodsWithMetaAtKey).mockResolvedValue([]);
+
+      const createFunctionSpy = vi.spyOn(inngest, "createFunction");
+      const mockConsumer = { apply: vi.fn().mockReturnValue({ forRoutes: vi.fn() }) };
+
+      await module.configure(mockConsumer as any);
+
+      expect(createFunctionSpy).toHaveBeenCalledWith(
+        { id: "test-fn", triggers: { event: "test/event" } },
         expect.any(Function)
       );
     });
@@ -72,7 +107,6 @@ describe("InngestModule - Multi-Trigger Support", () => {
     it("should aggregate multiple triggers into array", async () => {
       const handler = function testHandler() {};
 
-      // Set metadata for multiple triggers
       Reflect.defineMetadata(
         INNGEST_TRIGGER,
         [
@@ -116,11 +150,13 @@ describe("InngestModule - Multi-Trigger Support", () => {
       await module.configure(mockConsumer as any);
 
       expect(createFunctionSpy).toHaveBeenCalledWith(
-        { id: "test-fn" },
-        [
-          { event: "test/event.created" },
-          { cron: "0 2 * * *" }
-        ], // Multiple triggers passed as array
+        {
+          id: "test-fn",
+          triggers: [
+            { event: "test/event.created" },
+            { cron: "0 2 * * *" }
+          ],
+        },
         expect.any(Function)
       );
     });
@@ -128,7 +164,6 @@ describe("InngestModule - Multi-Trigger Support", () => {
     it("should deduplicate identical triggers", async () => {
       const handler = function testHandler() {};
 
-      // Set metadata with duplicate triggers
       Reflect.defineMetadata(
         INNGEST_TRIGGER,
         [
@@ -173,18 +208,19 @@ describe("InngestModule - Multi-Trigger Support", () => {
 
       await module.configure(mockConsumer as any);
 
-      // Should only have 2 unique triggers (duplicate removed)
       expect(createFunctionSpy).toHaveBeenCalledWith(
-        { id: "test-fn" },
-        [
-          { event: "test/event" },
-          { cron: "0 2 * * *" }
-        ],
+        {
+          id: "test-fn",
+          triggers: [
+            { event: "test/event" },
+            { cron: "0 2 * * *" }
+          ],
+        },
         expect.any(Function)
       );
     });
 
-    it("should pass undefined for functions with no triggers", async () => {
+    it("should handle functions with no triggers", async () => {
       const handler = function testHandler() {};
 
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn" }, handler);
@@ -206,21 +242,12 @@ describe("InngestModule - Multi-Trigger Support", () => {
       vi.mocked(discoveryService.providerMethodsWithMetaAtKey).mockResolvedValue([]);
 
       const createFunctionSpy = vi.spyOn(inngest, "createFunction");
+      const mockConsumer = { apply: vi.fn().mockReturnValue({ forRoutes: vi.fn() }) };
 
-      // Don't call configure since serve() will fail without a valid trigger
-      // Instead, directly test the createFunction behavior
-      const mockInstance = {};
-      const triggerArg = undefined; // No triggers
-
-      inngest.createFunction(
-        { id: "test-fn" },
-        triggerArg as any,
-        handler.bind(mockInstance)
-      );
+      await module.configure(mockConsumer as any);
 
       expect(createFunctionSpy).toHaveBeenCalledWith(
-        { id: "test-fn" },
-        undefined, // No triggers
+        { id: "test-fn", triggers: undefined },
         expect.any(Function)
       );
     });
@@ -273,12 +300,66 @@ describe("InngestModule - Multi-Trigger Support", () => {
       await module.configure(mockConsumer as any);
 
       expect(createFunctionSpy).toHaveBeenCalledWith(
-        { id: "test-fn" },
-        [
-          { event: "test/first" },
-          { event: "test/second" },
-          { event: "test/third" }
-        ],
+        {
+          id: "test-fn",
+          triggers: [
+            { event: "test/first" },
+            { event: "test/second" },
+            { event: "test/third" }
+          ],
+        },
+        expect.any(Function)
+      );
+    });
+
+    it("should merge triggers from config and @Trigger decorator", async () => {
+      const handler = function testHandler() {};
+
+      // @Trigger decorator adds one trigger
+      Reflect.defineMetadata(INNGEST_TRIGGER, [{ cron: "0 2 * * *" }], handler);
+      // @Function config also has a trigger
+      Reflect.defineMetadata(INNGEST_FUNCTION, {
+        id: "test-fn",
+        triggers: [{ event: "test/event" }],
+      }, handler);
+
+      const functionMethods = [{
+        discoveredMethod: {
+          handler,
+          parentClass: { instance: {} },
+        },
+        meta: { id: "test-fn", triggers: [{ event: "test/event" }] },
+      }];
+
+      const triggerMethods = [{
+        discoveredMethod: {
+          handler,
+          parentClass: { instance: {} },
+        },
+        meta: [{ cron: "0 2 * * *" }],
+      }];
+
+      vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
+        if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
+        if (key === INNGEST_TRIGGER) return Promise.resolve(triggerMethods);
+        return Promise.resolve([]);
+      });
+
+      vi.mocked(discoveryService.providerMethodsWithMetaAtKey).mockResolvedValue([]);
+
+      const createFunctionSpy = vi.spyOn(inngest, "createFunction");
+      const mockConsumer = { apply: vi.fn().mockReturnValue({ forRoutes: vi.fn() }) };
+
+      await module.configure(mockConsumer as any);
+
+      expect(createFunctionSpy).toHaveBeenCalledWith(
+        {
+          id: "test-fn",
+          triggers: [
+            { event: "test/event" },
+            { cron: "0 2 * * *" },
+          ],
+        },
         expect.any(Function)
       );
     });

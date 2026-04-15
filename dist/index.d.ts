@@ -1,25 +1,36 @@
-import { Inngest, GetEvents } from 'inngest';
-import { Context } from 'inngest/types';
+import { Inngest, InngestFunction, HandlerWithTriggers, GetStepTools } from 'inngest';
 import { NestModule, OnApplicationShutdown, MiddlewareConsumer } from '@nestjs/common';
 import { DiscoveryService, DiscoveryModule } from '@golevelup/nestjs-discovery';
 
-type ExtractInngest<T> = T extends NestInngest<infer I> ? I : never;
+type TriggerConfig = InngestFunction.Trigger<string>;
+type FunctionConfig = Omit<Parameters<Inngest.Any["createFunction"]>[0], "triggers">;
 declare class NestInngest<TInngest extends Inngest.Any> {
     protected readonly inngest: TInngest;
     constructor(inngest: TInngest);
     static from<TOpts extends Inngest.Any>(inngest: TOpts): NestInngest<TOpts>;
     /**
      * Inngest function decorator
+     * Accepts function config WITHOUT triggers (triggers come from @Trigger decorator or triggers property)
      */
-    Function(args: Parameters<TInngest["createFunction"]>[0]): (target: Object, key: string | symbol, descriptor: PropertyDescriptor) => PropertyDescriptor;
+    Function(args: FunctionConfig | Parameters<TInngest["createFunction"]>[0]): (target: Object, key: string | symbol, descriptor: PropertyDescriptor) => PropertyDescriptor;
     /**
-     * Inngest function trigger decorator
-     * Supports single or multiple triggers via variadic arguments or stacked decorators
+     * Inngest function trigger decorator (syntactic sugar)
+     * Supports single or multiple triggers via variadic arguments or stacked decorators.
+     * Triggers collected here are merged into the config at discovery time.
      */
-    Trigger(...configs: Parameters<TInngest["createFunction"]>[1][]): (target: Object, key: string | symbol, descriptor: PropertyDescriptor) => PropertyDescriptor;
+    Trigger(...configs: TriggerConfig[]): (target: Object, key: string | symbol, descriptor: PropertyDescriptor) => PropertyDescriptor;
 }
 declare namespace NestInngest {
-    type context<TInngest, TEvent extends keyof GetEvents<ExtractInngest<TInngest>> & string> = Context<ExtractInngest<TInngest>, TEvent>;
+    /**
+     * Type helper for handler context, derived from trigger types.
+     *
+     * Usage with eventType objects:
+     *   NestInngest.context<typeof inngest, [typeof orderCreated]>
+     *
+     * Usage with multiple triggers:
+     *   NestInngest.context<typeof inngest, [typeof orderCreated, typeof orderUpdated]>
+     */
+    type context<TInngest extends Inngest.Any, TTriggers extends readonly any[]> = Parameters<HandlerWithTriggers<GetStepTools<TInngest>, TTriggers>>[0];
 }
 
 /**
@@ -117,4 +128,4 @@ declare class InngestModule implements NestModule, OnApplicationShutdown {
 
 type ExtractClientOptions<T> = T extends Inngest<infer I> ? I : never;
 
-export { ExtractClientOptions, ExtractInngest, INNGEST_FUNCTION, INNGEST_KEY, INNGEST_OPTIONS, INNGEST_TRIGGER, InngestConnectOptions, InngestConnectionError, InngestModule, InngestModuleOptions, NestInngest };
+export { type ExtractClientOptions, INNGEST_FUNCTION, INNGEST_KEY, INNGEST_OPTIONS, INNGEST_TRIGGER, type InngestConnectOptions, InngestConnectionError, InngestModule, type InngestModuleOptions, NestInngest };

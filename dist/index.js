@@ -147,12 +147,23 @@ var InngestModule = class _InngestModule {
     ]);
     return functions.flat().map((func) => {
       const triggerMeta = triggers.flat().filter((each) => each.discoveredMethod.handler === func.discoveredMethod.handler).flatMap((each) => each.meta).filter(Boolean);
-      const uniqueTriggers = dedupeTriggers(triggerMeta);
-      const triggerArg = uniqueTriggers.length === 0 ? void 0 : uniqueTriggers.length === 1 ? uniqueTriggers[0] : uniqueTriggers;
+      const uniqueDecoratorTriggers = dedupeTriggers(triggerMeta);
+      const config = func.meta;
+      const configTriggers = config.triggers ? Array.isArray(config.triggers) ? config.triggers : [
+        config.triggers
+      ] : [];
+      const allTriggers = dedupeTriggers([
+        ...configTriggers,
+        ...uniqueDecoratorTriggers
+      ]);
+      const triggers_arg = allTriggers.length === 0 ? void 0 : allTriggers.length === 1 ? allTriggers[0] : allTriggers;
+      const { triggers: _discarded, ...configWithoutTriggers } = config;
       return this.inngest.createFunction(
         // @ts-ignore
-        func.meta,
-        triggerArg,
+        {
+          ...configWithoutTriggers,
+          triggers: triggers_arg
+        },
         func.discoveredMethod.handler.bind(func.discoveredMethod.parentClass.instance)
       );
     });
@@ -230,6 +241,7 @@ var NestInngest = class _NestInngest {
   }
   /**
   * Inngest function decorator
+  * Accepts function config WITHOUT triggers (triggers come from @Trigger decorator or triggers property)
   */
   Function(args) {
     return (target, key, descriptor) => {
@@ -238,16 +250,16 @@ var NestInngest = class _NestInngest {
     };
   }
   /**
-  * Inngest function trigger decorator
-  * Supports single or multiple triggers via variadic arguments or stacked decorators
+  * Inngest function trigger decorator (syntactic sugar)
+  * Supports single or multiple triggers via variadic arguments or stacked decorators.
+  * Triggers collected here are merged into the config at discovery time.
   */
   Trigger(...configs) {
     return (target, key, descriptor) => {
       const existing = Reflect.getMetadata(INNGEST_TRIGGER, descriptor.value) ?? [];
-      const normalized = configs.flat();
       Reflect.defineMetadata(INNGEST_TRIGGER, [
         ...existing,
-        ...normalized
+        ...configs
       ], descriptor.value);
       return descriptor;
     };

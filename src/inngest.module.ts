@@ -1,7 +1,7 @@
 import { Inject, MiddlewareConsumer, NestModule, OnApplicationShutdown } from "@nestjs/common";
 
 import { DiscoveryModule, DiscoveryService } from "@golevelup/nestjs-discovery";
-import { Inngest } from "inngest";
+import { type InngestFunction, Inngest } from "inngest";
 import { connect } from "inngest/connect";
 import { serve } from "inngest/express";
 
@@ -28,7 +28,7 @@ export const INNGEST_OPTIONS = "INNGEST_OPTIONS" as const;
 export const INNGEST_FUNCTION = "INNGEST_FUNCTION" as const;
 export const INNGEST_TRIGGER = "INNGEST_TRIGGER" as const;
 
-type TriggerConfig = NonNullable<Parameters<Inngest.Any["createFunction"]>[1]>;
+type TriggerConfig = InngestFunction.Trigger<string>;
 
 /**
  * Deduplicates trigger configurations while preserving order
@@ -139,6 +139,7 @@ export class InngestModule implements NestModule, OnApplicationShutdown {
     ]);
 
     return functions.flat().map((func) => {
+      // Collect triggers from @Trigger decorator metadata
       const triggerMeta = triggers
         .flat()
         .filter(
@@ -148,19 +149,28 @@ export class InngestModule implements NestModule, OnApplicationShutdown {
         .flatMap((each) => each.meta as TriggerConfig[])
         .filter(Boolean);
 
-      const uniqueTriggers = dedupeTriggers(triggerMeta);
+      const uniqueDecoratorTriggers = dedupeTriggers(triggerMeta);
 
-      const triggerArg =
-        uniqueTriggers.length === 0
+      // Merge: config may already have triggers (v4 native), plus @Trigger decorator triggers
+      const config = func.meta as Record<string, any>;
+      const configTriggers = config.triggers
+        ? (Array.isArray(config.triggers) ? config.triggers : [config.triggers])
+        : [];
+      const allTriggers = dedupeTriggers([...configTriggers, ...uniqueDecoratorTriggers]);
+
+      const triggers_arg =
+        allTriggers.length === 0
           ? undefined
-          : uniqueTriggers.length === 1
-            ? uniqueTriggers[0]
-            : uniqueTriggers;
+          : allTriggers.length === 1
+            ? allTriggers[0]
+            : allTriggers;
+
+      // v4: createFunction({ ...config, triggers }, handler)
+      const { triggers: _discarded, ...configWithoutTriggers } = config;
 
       return this.inngest.createFunction(
         // @ts-ignore
-        func.meta,
-        triggerArg,
+        { ...configWithoutTriggers, triggers: triggers_arg },
         func.discoveredMethod.handler.bind(
           func.discoveredMethod.parentClass.instance,
         ),
