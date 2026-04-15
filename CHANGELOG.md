@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.1](https://github.com/WTD-UP/nest-inngest/compare/v4.0.0...v4.0.1) (2026-04-15)
+
+
+### Bug Fixes
+
+* remove Error.captureStackTrace to fix DTS build in CI ([87b2e58](https://github.com/WTD-UP/nest-inngest/commit/87b2e580c261b1efdb67f6fb092aec4f52e71ed9))
+
 ## [4.0.0](https://github.com/WTD-UP/nest-inngest/compare/v3.0.0...v4.0.0) (2026-04-15)
 
 
