@@ -37,14 +37,40 @@ describe("InngestModule - Connect Mode", () => {
     vi.restoreAllMocks();
   });
 
+  function setupDiscoveryMocks(handler: Function) {
+    const functionMethods = [{
+      discoveredMethod: {
+        handler,
+        parentClass: { instance: {} },
+      },
+      meta: { id: "test-fn" },
+    }];
+
+    const triggerMethods = [{
+      discoveredMethod: {
+        handler,
+        parentClass: { instance: {} },
+      },
+      meta: [{ event: "test/event" }],
+    }];
+
+    vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
+      if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
+      if (key === INNGEST_TRIGGER) return Promise.resolve(triggerMethods);
+      return Promise.resolve([]);
+    });
+
+    vi.mocked(discoveryService.providerMethodsWithMetaAtKey).mockResolvedValue([]);
+  }
+
   describe("Connect mode initialization", () => {
     it("should use connect mode when specified", async () => {
       const { connect } = await import("inngest/connect");
-      
+
       module = new InngestModule(
         discoveryService,
         inngest,
-        { 
+        {
           mode: "connect",
           connectOptions: {
             instanceId: "test-worker-1",
@@ -57,29 +83,7 @@ describe("InngestModule - Connect Mode", () => {
       Reflect.defineMetadata(INNGEST_TRIGGER, [{ event: "test/event" }], handler);
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn" }, handler);
 
-      const functionMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: { id: "test-fn" },
-      }];
-
-      const triggerMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: [{ event: "test/event" }],
-      }];
-
-      vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
-        if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
-        if (key === INNGEST_TRIGGER) return Promise.resolve(triggerMethods);
-        return Promise.resolve([]);
-      });
-
-      vi.mocked(discoveryService.providerMethodsWithMetaAtKey).mockResolvedValue([]);
+      setupDiscoveryMocks(handler);
 
       const mockConsumer = { apply: vi.fn().mockReturnValue({ forRoutes: vi.fn() }) };
 
@@ -103,7 +107,7 @@ describe("InngestModule - Connect Mode", () => {
 
     it("should use connect mode with default options when not specified", async () => {
       const { connect } = await import("inngest/connect");
-      
+
       module = new InngestModule(
         discoveryService,
         inngest,
@@ -114,29 +118,7 @@ describe("InngestModule - Connect Mode", () => {
       Reflect.defineMetadata(INNGEST_TRIGGER, [{ event: "test/event" }], handler);
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn" }, handler);
 
-      const functionMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: { id: "test-fn" },
-      }];
-
-      const triggerMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: [{ event: "test/event" }],
-      }];
-
-      vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
-        if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
-        if (key === INNGEST_TRIGGER) return Promise.resolve(triggerMethods);
-        return Promise.resolve([]);
-      });
-
-      vi.mocked(discoveryService.providerMethodsWithMetaAtKey).mockResolvedValue([]);
+      setupDiscoveryMocks(handler);
 
       const mockConsumer = { apply: vi.fn().mockReturnValue({ forRoutes: vi.fn() }) };
 
@@ -164,29 +146,7 @@ describe("InngestModule - Connect Mode", () => {
       Reflect.defineMetadata(INNGEST_TRIGGER, [{ event: "test/event" }], handler);
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn" }, handler);
 
-      const functionMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: { id: "test-fn" },
-      }];
-
-      const triggerMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: [{ event: "test/event" }],
-      }];
-
-      vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
-        if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
-        if (key === INNGEST_TRIGGER) return Promise.resolve(triggerMethods);
-        return Promise.resolve([]);
-      });
-
-      vi.mocked(discoveryService.providerMethodsWithMetaAtKey).mockResolvedValue([]);
+      setupDiscoveryMocks(handler);
 
       const mockConsumer = { apply: vi.fn().mockReturnValue({ forRoutes: vi.fn() }) };
 
@@ -258,29 +218,7 @@ describe("InngestModule - Connect Mode", () => {
       Reflect.defineMetadata(INNGEST_TRIGGER, [{ event: "test/event" }], handler);
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn" }, handler);
 
-      const functionMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: { id: "test-fn" },
-      }];
-
-      const triggerMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: [{ event: "test/event" }],
-      }];
-
-      vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
-        if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
-        if (key === INNGEST_TRIGGER) return Promise.resolve(triggerMethods);
-        return Promise.resolve([]);
-      });
-
-      vi.mocked(discoveryService.providerMethodsWithMetaAtKey).mockResolvedValue([]);
+      setupDiscoveryMocks(handler);
 
       const mockConsumer = { apply: vi.fn().mockReturnValue({ forRoutes: vi.fn() }) };
 
@@ -294,7 +232,7 @@ describe("InngestModule - Connect Mode", () => {
   describe("Function discovery in connect mode", () => {
     it("should discover and register functions correctly", async () => {
       const { connect } = await import("inngest/connect");
-      
+
       module = new InngestModule(
         discoveryService,
         inngest,
@@ -303,7 +241,7 @@ describe("InngestModule - Connect Mode", () => {
 
       const handler1 = function testHandler1() {};
       const handler2 = function testHandler2() {};
-      
+
       Reflect.defineMetadata(INNGEST_TRIGGER, [{ event: "test/event1" }], handler1);
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn-1" }, handler1);
       Reflect.defineMetadata(INNGEST_TRIGGER, [{ event: "test/event2" }], handler2);
@@ -370,4 +308,3 @@ describe("InngestModule - Connect Mode", () => {
     });
   });
 });
-

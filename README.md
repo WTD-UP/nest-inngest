@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/nest-inngest)](https://www.npmjs.com/package/nest-inngest)
 
-An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js projects.
+An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js projects. Compatible with Inngest TS SDK v4.
 
 ## Overview
 
@@ -15,7 +15,7 @@ An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js p
 1. Install the library using your preferred package manager.
 
    ```shell
-    pnpm add nest-inngest
+    pnpm add nest-inngest inngest@^4
    ```
 
 2. In your app.module.ts or a similar file, add a new item to the `imports` array.
@@ -75,12 +75,12 @@ An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js p
    ```
 
    **Connect Mode Benefits:**
-   - ✅ Lower latency (no HTTP round-trips)
-   - ✅ Elastic horizontal scaling
-   - ✅ Better support for long-running steps
-   - ✅ Firewall-friendly (outbound connection only)
+   - Lower latency (no HTTP round-trips)
+   - Elastic horizontal scaling
+   - Better support for long-running steps
+   - Firewall-friendly (outbound connection only)
 
-   **⚠️ CRITICAL for Connect Mode: Enable Shutdown Hooks**
+   **CRITICAL for Connect Mode: Enable Shutdown Hooks**
 
    To prevent zombie WebSocket connections, you **MUST** enable NestJS shutdown hooks in your `main.ts`:
 
@@ -88,10 +88,10 @@ An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js p
    // main.ts
    async function bootstrap() {
      const app = await NestFactory.create(AppModule);
-     
+
      // REQUIRED for Connect mode to properly close WebSocket connections
      app.enableShutdownHooks();
-     
+
      await app.listen(3000);
    }
    bootstrap();
@@ -99,25 +99,24 @@ An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js p
 
    Without `enableShutdownHooks()`, your WebSocket connections will become zombies when the app restarts or shuts down, remaining connected indefinitely in the Inngest dashboard.
 
-3. (Optional) In your `inngest.ts` file, include the `schemas` using your preferred method.
+3. Define your Inngest client and event types.
+
+   Inngest v4 uses `eventType()` to define events individually, replacing the old centralized `EventSchemas` approach.
 
    ```ts
    // src/lib/inngest.ts
-   import { Inngest, EventSchemas } from "inngest";
+   import { Inngest, eventType } from "inngest";
    import { NestInngest } from "nest-inngest";
    import { z } from "zod";
 
-   export const inngest = new Inngest({
-     id: "orders",
-     // https://www.inngest.com/docs/reference/client/create#defining-event-payload-types
-     schemas: new EventSchemas().fromZod({
-       "orders/order.created": {
-         data: z.object({
-           id: z.string().uuid(),
-           product: z.string(),
-           quantity: z.number(),
-         }),
-       },
+   export const inngest = new Inngest({ id: "orders" });
+
+   // Define events with runtime validation (Zod)
+   export const orderCreated = eventType("orders/order.created", {
+     schema: z.object({
+       id: z.string().uuid(),
+       product: z.string(),
+       quantity: z.number(),
      }),
    });
 
@@ -125,62 +124,90 @@ An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js p
    export const OrdersInngest = NestInngest.from(inngest);
    ```
 
-4. Assign a new Inngest function to your controller
+   You can also use `staticSchema()` for compile-time-only typing (no runtime validation):
 
    ```ts
-   import { Controller } "@nestjs/common";
+   import { Inngest, eventType, staticSchema } from "inngest";
+
+   export const inngest = new Inngest({ id: "orders" });
+
+   type OrderCreatedData = { id: string; product: string; quantity: number };
+
+   export const orderCreated = eventType("orders/order.created", {
+     schema: staticSchema<OrderCreatedData>(),
+   });
+   ```
+
+4. Assign a new Inngest function to your controller
+
+   There are two ways to define triggers: using `eventType` objects in the `@Function` config (recommended), or using the `@Trigger` decorator as syntactic sugar.
+
+   ### Using triggers in `@Function` config (recommended)
+
+   ```ts
+   import { Controller } from "@nestjs/common";
    import { NestInngest } from "nest-inngest";
 
-   import { OrdersInngest } from "../lib/inngest"
+   import { OrdersInngest, inngest, orderCreated } from "../lib/inngest";
 
    @Controller("orders")
    export class OrdersController {
       constructor(private readonly ordersService: OrdersService) {}
 
       @OrdersInngest.Function({
-        id: "orders-handler"
-      })
-      @OrdersInngest.Trigger({
-        event: "orders/order.created" // 👈 Type-safety
+        id: "orders-handler",
+        triggers: [orderCreated],  // eventType object as trigger
       })
       public async handleOrderCreated(
-        { event, step }: NestInngest.context<typeof OrdersInngest, "orders/order.created"> // 👈 Type helper to function context
+        { event, step }: NestInngest.context<typeof inngest, [typeof orderCreated]>
       ) {
-        // process recently created order
-
-        console.log(event.data);
+        // event.data is fully typed from the eventType schema
+        console.log(event.data.id);
+        console.log(event.data.product);
 
         await this.ordersService.sendOrderNotification(event.data.id);
 
-        return { success: true }
+        return { success: true };
       }
    }
+   ```
 
+   ### Using `@Trigger` decorator (syntactic sugar)
+
+   The `@Trigger` decorator is still supported as syntactic sugar. Triggers defined via `@Trigger` are merged into the function config at discovery time.
+
+   ```ts
+   @OrdersInngest.Function({ id: "orders-handler" })
+   @OrdersInngest.Trigger({ event: "orders/order.created" })
+   public async handleOrderCreated(
+     { event, step }: NestInngest.context<typeof inngest, [typeof orderCreated]>
+   ) {
+     // ...
+   }
    ```
 
 ## Multiple Triggers
 
-You can now define multiple triggers for a single Inngest function handler, allowing it to respond to different events, cron schedules, or manual invocations:
+You can define multiple triggers for a single Inngest function handler, allowing it to respond to different events, cron schedules, or manual invocations.
+
+### In the `@Function` config (recommended)
 
 ```ts
 import { Controller } from "@nestjs/common";
 import { NestInngest } from "nest-inngest";
 
-import { OrdersInngest } from "../lib/inngest"
+import { OrdersInngest, inngest, orderCreated } from "../lib/inngest";
 
 @Controller("orders")
 export class OrdersController {
    constructor(private readonly ordersService: OrdersService) {}
 
    @OrdersInngest.Function({
-     id: "orders-multi-handler"
+     id: "orders-multi-handler",
+     triggers: [orderCreated, { cron: "0 2 * * *" }],
    })
-   @OrdersInngest.Trigger(
-     { event: "orders/order.created" },
-     { cron: "0 2 * * *" }, // Runs at 2 AM daily
-   )
    public async handleOrderEvents(
-     { event, step }: NestInngest.context<typeof OrdersInngest, "orders/order.created"> // 👈 Union type for multiple events
+     { event, step }: NestInngest.context<typeof inngest, [typeof orderCreated]>
    ) {
      if (event.name === "orders/order.created") {
        // Handle order creation event
@@ -192,87 +219,158 @@ export class OrdersController {
        await this.ordersService.reconcileOrders();
      }
 
-     return { success: true }
+     return { success: true };
    }
 }
 ```
 
-### Stacking Multiple Decorators
+### Using `@Trigger` decorator
 
-You can also stack multiple `@Trigger` decorators to achieve the same result:
+You can also use the `@Trigger` decorator with variadic arguments or stack multiple decorators:
 
 ```ts
-@OrdersInngest.Function({
-  id: "orders-multi-handler"
-})
+// Variadic arguments
+@OrdersInngest.Function({ id: "orders-multi-handler" })
+@OrdersInngest.Trigger(
+  { event: "orders/order.created" },
+  { cron: "0 2 * * *" },
+)
+public async handleOrderEvents(
+  { event, step }: NestInngest.context<typeof inngest, [typeof orderCreated]>
+) {
+  // ...
+}
+
+// Stacked decorators
+@OrdersInngest.Function({ id: "orders-multi-handler" })
 @OrdersInngest.Trigger({ event: "orders/order.created" })
 @OrdersInngest.Trigger({ cron: "0 2 * * *" })
 public async handleOrderEvents(
-  { event, step }: NestInngest.context<typeof OrdersInngest, "orders/order.created">
+  { event, step }: NestInngest.context<typeof inngest, [typeof orderCreated]>
 ) {
-  // Same implementation as above
+  // ...
 }
 ```
 
-Both approaches are equivalent and will register the same triggers for your function.
+Both approaches are equivalent and will register the same triggers for your function. You can even mix `triggers` in the `@Function` config with `@Trigger` decorators — they will be merged and deduplicated.
+
+## Context Type Helper
+
+The `NestInngest.context` type helper provides full type safety for your handler context, derived from your `eventType` definitions.
+
+```ts
+import { NestInngest } from "nest-inngest";
+
+// Single event trigger — event.data is typed from orderCreated's schema
+NestInngest.context<typeof inngest, [typeof orderCreated]>
+
+// Multiple event triggers — event is a union type
+NestInngest.context<typeof inngest, [typeof orderCreated, typeof orderUpdated]>
+```
+
+The context includes `event`, `step`, `group`, `runId`, and `attempt`.
 
 ## Advanced Features
 
 ### Checkpointing
 
-Enable checkpointing for near-zero inter-step latency by executing steps eagerly on the client side:
+In Inngest v4, checkpointing is **enabled by default**. Multiple steps execute in a single request for near-zero inter-step latency. Set `maxRuntime` to 60-80% of your function timeout in serverless environments:
 
 ```ts
-// Enable globally on the Inngest client
 export const inngest = new Inngest({
   id: "orders",
-  checkpointing: true,
+  checkpointing: { maxRuntime: "50s" },
 });
 
-// OR enable per-function
+// Disable per-function if needed
 @OrdersInngest.Function({
-  id: "fast-order-handler",
-  checkpointing: true,
+  id: "legacy-handler",
+  checkpointing: false,
+  triggers: [orderCreated],
 })
-@OrdersInngest.Trigger({ event: "orders/order.created" })
 public async handleOrder({ event, step }) {
-  // This function uses checkpointing for faster execution
   await step.run("process-order", async () => {
     // Process order
   });
 }
 ```
 
-### Realtime Updates
+### Sending Events
 
-Stream updates from your functions to users:
+Use `eventType.create()` for type-safe event payloads:
 
 ```ts
-@OrdersInngest.Function({
-  id: "order-processor"
-})
-@OrdersInngest.Trigger({ event: "orders/order.created" })
-public async processOrder({ event, step }) {
-  // Send realtime updates to users
-  await step.sendEvent("order.progress", {
-    name: "orders/order.progress",
-    data: { orderId: event.data.id, status: "processing" }
-  });
-  
-  // Continue processing...
-}
+await inngest.send(
+  orderCreated.create({ id: "abc-123", product: "Widget", quantity: 5 })
+);
 ```
 
 ## Deployment Modes Comparison
 
 | Feature | Serve Mode (HTTP) | Connect Mode (WebSocket) |
 |---------|------------------|-------------------------|
-| Connection | Inbound (Inngest → App) | Outbound (App → Inngest) |
+| Connection | Inbound (Inngest -> App) | Outbound (App -> Inngest) |
 | Latency | Higher | Lower |
 | Firewall | Requires open port | Outbound only |
 | Scaling | Horizontal | Elastic horizontal |
 | Setup | Simple | Simple |
 | Best For | Traditional deployments | High-performance, containerized apps |
+
+## Migrating from nest-inngest v1.x (Inngest SDK v3)
+
+If you're upgrading from nest-inngest v1.x (which used Inngest SDK v3), here are the key changes:
+
+### Event Schemas
+
+```ts
+// Before (v3): centralized EventSchemas on client
+import { Inngest, EventSchemas } from "inngest";
+const inngest = new Inngest({
+  id: "orders",
+  schemas: new EventSchemas().fromZod({ ... }),
+});
+
+// After (v4): individual eventType() definitions
+import { Inngest, eventType } from "inngest";
+const inngest = new Inngest({ id: "orders" });
+const orderCreated = eventType("orders/order.created", {
+  schema: z.object({ ... }),
+});
+```
+
+### Context Type Helper
+
+```ts
+// Before (v3): event name string
+NestInngest.context<typeof OrdersInngest, "orders/order.created">
+
+// After (v4): eventType triggers tuple
+NestInngest.context<typeof inngest, [typeof orderCreated]>
+```
+
+### Triggers (optional change)
+
+The `@Trigger` decorator still works. Optionally move triggers into `@Function` config:
+
+```ts
+// Before (v3)
+@OrdersInngest.Function({ id: "handler" })
+@OrdersInngest.Trigger({ event: "orders/order.created" })
+
+// After (v4) — either approach works
+@OrdersInngest.Function({ id: "handler", triggers: [orderCreated] })
+// or keep using @Trigger decorator as before
+```
+
+### Other v4 Changes
+
+- **Default mode is cloud** — use `isDev: true` or `INNGEST_DEV=1` for local development
+- **`logLevel` removed** — use `logger: new ConsoleLogger({ level: "debug" })` instead
+- **`serveHost` renamed** to `serveOrigin`
+- **Checkpointing enabled by default** — set `maxRuntime` for serverless
+- **`optimizeParallelism` enabled by default** — use `group.parallel()` for race semantics
+
+See the [Inngest v4 migration guide](https://www.inngest.com/docs/guides/migrate-to-v4) for full details.
 
 ## Troubleshooting
 
@@ -383,21 +481,21 @@ InngestModule.forRoot({
   ```
 
 **Prevention Checklist**:
-- ✅ `app.enableShutdownHooks()` is called
-- ✅ Connect mode uses `handleShutdownSignals: []` (library handles this)
-- ✅ Container orchestration forwards SIGTERM properly
-- ✅ Graceful shutdown timeout is adequate (10-30 seconds)
+- `app.enableShutdownHooks()` is called
+- Connect mode uses `handleShutdownSignals: []` (library handles this)
+- Container orchestration forwards SIGTERM properly
+- Graceful shutdown timeout is adequate (10-30 seconds)
 
 ## Roadmap
 
 - [x] Add a global Nest module using the `.forRoot` pattern.
 - [x] Export a class that accepts an instance of Inngest in the constructor and exposes typed decorators.
   - [x] `Function` decorator
-  - [x] `Trigger` decorator
+  - [x] `Trigger` decorator (also kept as syntactic sugar in v4)
 - [x] Add typing helpers.
   - [x] Helper for typing the `Context`
 - [x] Support for Inngest Connect mode (WebSocket)
-- [x] Support for latest Inngest features (Checkpointing, Realtime)
-- [ ] Add automated tests.
+- [x] Support for Inngest SDK v4 (`eventType`, 2-arg `createFunction`, `HandlerWithTriggers` context)
+- [x] Add automated tests.
 - [ ] Add automatic documentation in the AsyncAPI spec. (TBD)
 - [ ] Add Github actions with changelogs and auto releases
