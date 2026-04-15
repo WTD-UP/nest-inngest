@@ -59,7 +59,7 @@ function _ts_param(paramIndex, decorator) {
   };
 }
 __name(_ts_param, "_ts_param");
-var InngestConnectionError = class _InngestConnectionError extends Error {
+var InngestConnectionError = class extends Error {
   static {
     __name(this, "InngestConnectionError");
   }
@@ -68,9 +68,6 @@ var InngestConnectionError = class _InngestConnectionError extends Error {
     super(message);
     this.name = "InngestConnectionError";
     this.cause = cause;
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, _InngestConnectionError);
-    }
   }
 };
 var INNGEST_KEY = "INNGEST";

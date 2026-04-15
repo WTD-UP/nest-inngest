@@ -15,11 +15,6 @@ export class InngestConnectionError extends Error {
     super(message);
     this.name = 'InngestConnectionError';
     this.cause = cause;
-    
-    // Maintain proper stack trace in V8
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, InngestConnectionError);
-    }
   }
 }
 
