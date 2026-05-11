@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.1](https://github.com/WTD-UP/nest-inngest/compare/v4.3.0...v4.3.1) (2026-05-11)
+
+
+### Bug Fixes
+
+* update pnpm-lock.yaml for inngest ^4.3.0 ([e7506d2](https://github.com/WTD-UP/nest-inngest/commit/e7506d23f99a7ec6f003d0b51426f9e39c1371e3))
+
 ## [4.3.0](https://github.com/WTD-UP/nest-inngest/compare/v4.0.0...v4.3.0) (2026-05-11)
 
 
