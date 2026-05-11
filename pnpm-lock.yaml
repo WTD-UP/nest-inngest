@@ -28,8 +28,8 @@ importers:
         specifier: ^4.0.2
         version: 4.1.4(vitest@4.1.4)
       inngest:
-        specifier: ^4.2.2
-        version: 4.2.2(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(typescript@5.9.3)(zod@4.3.6)
+        specifier: ^4.3.0
+        version: 4.3.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(typescript@5.9.3)(zod@4.3.6)
       prettier:
         specifier: ^3.0.3
         version: 3.8.3
@@ -1575,8 +1575,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  inngest@4.2.2:
-    resolution: {integrity: sha512-GcpJXYAQQxj8gOeIwfssjxlqNHA6/5LEbLjQOXs7usxR3q2jn14DMr9/8jGqidJGgiCqt4TH7nBHkAtyme8TKg==}
+  inngest@4.3.0:
+    resolution: {integrity: sha512-UYx2fFbtcEDq092yL088iEeB0j57+6fjvTbrkH3JX+c87j2YsSNVxUddr20EHzd5psXQX5CC5+39hA16OcxdzQ==}
     engines: {node: '>=20'}
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
@@ -3907,7 +3907,7 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@4.2.2(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(typescript@5.9.3)(zod@4.3.6):
+  inngest@4.3.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(typescript@5.9.3)(zod@4.3.6):
     dependencies:
       '@bufbuild/protobuf': 2.11.0
       '@inngest/ai': 0.1.7
