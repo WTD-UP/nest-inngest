@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.0](https://github.com/WTD-UP/nest-inngest/compare/v4.0.0...v4.3.0) (2026-05-11)
+
+
+### Features
+
+* bump inngest SDK to ^4.3.0 ([a653d50](https://github.com/WTD-UP/nest-inngest/commit/a653d50ff5079d87cef03149b7928e31b4773457))
+
 ## [4.0.0](https://github.com/WTD-UP/nest-inngest/compare/v3.0.0...v4.0.0) (2026-04-15)
 
 
