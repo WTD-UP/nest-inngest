@@ -128,4 +128,5 @@ declare class InngestModule implements NestModule, OnApplicationShutdown {
 
 type ExtractClientOptions<T> = T extends Inngest<infer I> ? I : never;
 
-export { type ExtractClientOptions, INNGEST_FUNCTION, INNGEST_KEY, INNGEST_OPTIONS, INNGEST_TRIGGER, type InngestConnectOptions, InngestConnectionError, InngestModule, type InngestModuleOptions, NestInngest };
+export { INNGEST_FUNCTION, INNGEST_KEY, INNGEST_OPTIONS, INNGEST_TRIGGER, InngestConnectionError, InngestModule, NestInngest };
+export type { ExtractClientOptions, InngestConnectOptions, InngestModuleOptions };

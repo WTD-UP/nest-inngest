@@ -19,8 +19,8 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   INNGEST_FUNCTION: () => INNGEST_FUNCTION,
   INNGEST_KEY: () => INNGEST_KEY,
   INNGEST_OPTIONS: () => INNGEST_OPTIONS,
@@ -29,7 +29,7 @@ __export(src_exports, {
   InngestModule: () => InngestModule,
   NestInngest: () => NestInngest
 });
-module.exports = __toCommonJS(src_exports);
+module.exports = __toCommonJS(index_exports);
 
 // src/inngest.module.ts
 var import_common = require("@nestjs/common");
@@ -39,18 +39,22 @@ var import_connect = require("inngest/connect");
 var import_express = require("inngest/express");
 function _ts_decorate(decorators, target, key, desc) {
   var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-  if (typeof Reflect === "object" && typeof Reflect.decorate === "function")
+  if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
     r = Reflect.decorate(decorators, target, key, desc);
-  else
-    for (var i = decorators.length - 1; i >= 0; i--)
-      if (d = decorators[i])
+  } else {
+    for (var i = decorators.length - 1; i >= 0; i--) {
+      if (d = decorators[i]) {
         r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+      }
+    }
+  }
   return c > 3 && r && Object.defineProperty(target, key, r), r;
 }
 __name(_ts_decorate, "_ts_decorate");
-function _ts_metadata(k, v) {
-  if (typeof Reflect === "object" && typeof Reflect.metadata === "function")
-    return Reflect.metadata(k, v);
+function _ts_metadata(metadataKey, metadataValue) {
+  if (typeof Reflect === "object" && typeof Reflect.metadata === "function") {
+    return Reflect.metadata(metadataKey, metadataValue);
+  }
 }
 __name(_ts_metadata, "_ts_metadata");
 function _ts_param(paramIndex, decorator) {
@@ -120,11 +124,11 @@ var InngestModule = class _InngestModule {
       providers: [
         {
           provide: INNGEST_KEY,
-          useFactory: () => inngest
+          useFactory: /* @__PURE__ */ __name(() => inngest, "useFactory")
         },
         {
           provide: INNGEST_OPTIONS,
-          useFactory: () => options
+          useFactory: /* @__PURE__ */ __name(() => options, "useFactory")
         }
       ],
       exports: [],

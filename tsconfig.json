@@ -6,7 +6,7 @@
     "esModuleInterop": true,
     "experimentalDecorators": true,
     "module": "commonjs",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "noUnusedLocals": true,
     "outDir": "dist",
     "paths": {
