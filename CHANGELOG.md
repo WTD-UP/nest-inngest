@@ -1,5 +1,22 @@
 # Changelog
 
+## [5.0.0](https://github.com/WTD-UP/nest-inngest/compare/v4.3.0...v5.0.0) (2026-10-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* NestJS 10 and NestJS 11.0.0 to 11.1.23 are no longer supported. @golevelup/nestjs-discovery 5.0.0 dropped Nest 10 and 7.x requires Nest ^11.1.24. Consumers must be on @nestjs/common and @nestjs/core ^11.1.24 or ^12.0.0.
+
+### Features
+
+* require NestJS 11.1.24 or later ([4b15742](https://github.com/WTD-UP/nest-inngest/commit/4b1574289ee7f9d41deb15ff7ce370b6877b7f8f))
+* support NestJS 11 and 12 ([6f046d3](https://github.com/WTD-UP/nest-inngest/commit/6f046d3e2d73109d5411e313488155919b2dc800))
+
+
+### Bug Fixes
+
+* **deps:** require @golevelup/nestjs-discovery 4.0.3 or later ([80a9eae](https://github.com/WTD-UP/nest-inngest/commit/80a9eae3d7c3abbfa84785f25f9872d7c6a9a860))
+
 ## [4.3.0](https://github.com/WTD-UP/nest-inngest/compare/v4.0.0...v4.3.0) (2026-05-11)
 
 
