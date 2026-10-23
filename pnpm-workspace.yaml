@@ -1,0 +1,7 @@
+# pnpm 11+ fails the install when a dependency's build script is neither
+# allowed nor denied. None of these scripts are needed to build or test
+# this package, so keep them denied (pnpm 10 skipped them the same way).
+allowBuilds:
+  '@swc/core': false
+  esbuild: false
+  protobufjs: false
