@@ -16,7 +16,10 @@
     },
     "strict": true,
     "strictNullChecks": true,
-    "target": "esnext"
+    "target": "esnext",
+    "types": [
+      "node"
+    ]
   },
   "exclude": [
     "node_modules",
