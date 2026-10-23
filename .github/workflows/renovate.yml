@@ -1,0 +1,38 @@
+name: Renovate
+
+# Standalone on purpose: this repository is public, and public repositories
+# can't call the org's private WTD-UP/github-workflows Renovate workflow.
+# Repository settings live in renovate.json and mirror the org's shared config.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 13-23 * * 1-5"
+    - cron: "0 0 * * 1-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: renovatebot/github-action@230ce922b08968d0a4f6f70f295601daff09ef1d # v46.3.7
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+        env:
+          RENOVATE_PLATFORM: github
+          RENOVATE_AUTODISCOVER: "false"
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REPOSITORIES: '["${{ github.repository }}"]'
+          # Without allowScripts, Renovate regenerates pnpm-lock.yaml with
+          # --ignore-pnpmfile, dropping the TypeScript redirect in
+          # .pnpmfile.cjs, so every update fails the frozen install. Install
+          # scripts stay off through the repository default ignoreScripts.
+          RENOVATE_ALLOW_SCRIPTS: "true"
+          LOG_LEVEL: info
