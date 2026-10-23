@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/nest-inngest)](https://www.npmjs.com/package/nest-inngest)
 
-An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js projects. Compatible with Inngest TS SDK v4.
+An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js projects. Compatible with Inngest TS SDK v4 and NestJS 10, 11 and 12.
 
 ## Overview
 
