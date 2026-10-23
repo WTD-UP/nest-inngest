@@ -3,6 +3,7 @@ import { Inngest } from "inngest";
 import "reflect-metadata";
 import { InngestModule, INNGEST_TRIGGER, INNGEST_FUNCTION } from "../inngest.module";
 import { DiscoveryService } from "@golevelup/nestjs-discovery";
+import { mockDiscovered } from "./discovery.mock";
 
 // Mock the connect function
 vi.mock("inngest/connect", async () => {
@@ -37,22 +38,10 @@ describe("InngestModule - Connect Mode", () => {
     vi.restoreAllMocks();
   });
 
-  function setupDiscoveryMocks(handler: Function) {
-    const functionMethods = [{
-      discoveredMethod: {
-        handler,
-        parentClass: { instance: {} },
-      },
-      meta: { id: "test-fn" },
-    }];
+  function setupDiscoveryMocks(handler: (...args: any[]) => any) {
+    const functionMethods = [mockDiscovered(handler, { id: "test-fn" })];
 
-    const triggerMethods = [{
-      discoveredMethod: {
-        handler,
-        parentClass: { instance: {} },
-      },
-      meta: [{ event: "test/event" }],
-    }];
+    const triggerMethods = [mockDiscovered(handler, [{ event: "test/event" }])];
 
     vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
       if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
@@ -169,6 +158,7 @@ describe("InngestModule - Connect Mode", () => {
         close: mockClose,
         closed: Promise.resolve(),
         state: "ACTIVE" as any,
+        getDebugState: vi.fn(),
       });
 
       module = new InngestModule(
@@ -181,13 +171,7 @@ describe("InngestModule - Connect Mode", () => {
       Reflect.defineMetadata(INNGEST_TRIGGER, [{ event: "test/event" }], handler);
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn" }, handler);
 
-      const functionMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: { id: "test-fn" },
-      }];
+      const functionMethods = [mockDiscovered(handler, { id: "test-fn" })];
 
       vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
         if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
@@ -248,37 +232,13 @@ describe("InngestModule - Connect Mode", () => {
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn-2" }, handler2);
 
       const functionMethods = [
-        {
-          discoveredMethod: {
-            handler: handler1,
-            parentClass: { instance: {} },
-          },
-          meta: { id: "test-fn-1" },
-        },
-        {
-          discoveredMethod: {
-            handler: handler2,
-            parentClass: { instance: {} },
-          },
-          meta: { id: "test-fn-2" },
-        }
+        mockDiscovered(handler1, { id: "test-fn-1" }),
+        mockDiscovered(handler2, { id: "test-fn-2" })
       ];
 
       const triggerMethods = [
-        {
-          discoveredMethod: {
-            handler: handler1,
-            parentClass: { instance: {} },
-          },
-          meta: [{ event: "test/event1" }],
-        },
-        {
-          discoveredMethod: {
-            handler: handler2,
-            parentClass: { instance: {} },
-          },
-          meta: [{ event: "test/event2" }],
-        }
+        mockDiscovered(handler1, [{ event: "test/event1" }]),
+        mockDiscovered(handler2, [{ event: "test/event2" }])
       ];
 
       vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {

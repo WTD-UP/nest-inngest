@@ -3,6 +3,7 @@ import { Inngest } from "inngest";
 import "reflect-metadata";
 import { InngestModule, INNGEST_TRIGGER, INNGEST_FUNCTION } from "../inngest.module";
 import { DiscoveryService } from "@golevelup/nestjs-discovery";
+import { mockDiscovered } from "./discovery.mock";
 
 describe("InngestModule - Multi-Trigger Support", () => {
   let inngest: Inngest;
@@ -32,21 +33,9 @@ describe("InngestModule - Multi-Trigger Support", () => {
       Reflect.defineMetadata(INNGEST_TRIGGER, [{ event: "test/event" }], handler);
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn" }, handler);
 
-      const functionMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: { id: "test-fn" },
-      }];
+      const functionMethods = [mockDiscovered(handler, { id: "test-fn" })];
 
-      const triggerMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: [{ event: "test/event" }],
-      }];
+      const triggerMethods = [mockDiscovered(handler, [{ event: "test/event" }])];
 
       vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
         if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
@@ -77,13 +66,7 @@ describe("InngestModule - Multi-Trigger Support", () => {
         triggers: [{ event: "test/event" }],
       }, handler);
 
-      const functionMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: { id: "test-fn", triggers: [{ event: "test/event" }] },
-      }];
+      const functionMethods = [mockDiscovered(handler, { id: "test-fn", triggers: [{ event: "test/event" }] })];
 
       vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
         if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
@@ -117,24 +100,12 @@ describe("InngestModule - Multi-Trigger Support", () => {
       );
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn" }, handler);
 
-      const functionMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: { id: "test-fn" },
-      }];
+      const functionMethods = [mockDiscovered(handler, { id: "test-fn" })];
 
-      const triggerMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: [
-          { event: "test/event.created" },
-          { cron: "0 2 * * *" }
-        ],
-      }];
+      const triggerMethods = [mockDiscovered(handler, [
+        { event: "test/event.created" },
+        { cron: "0 2 * * *" }
+      ])];
 
       vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
         if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
@@ -175,25 +146,13 @@ describe("InngestModule - Multi-Trigger Support", () => {
       );
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn" }, handler);
 
-      const functionMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: { id: "test-fn" },
-      }];
+      const functionMethods = [mockDiscovered(handler, { id: "test-fn" })];
 
-      const triggerMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: [
-          { event: "test/event" },
-          { event: "test/event" },
-          { cron: "0 2 * * *" }
-        ],
-      }];
+      const triggerMethods = [mockDiscovered(handler, [
+        { event: "test/event" },
+        { event: "test/event" },
+        { cron: "0 2 * * *" }
+      ])];
 
       vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
         if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
@@ -225,13 +184,7 @@ describe("InngestModule - Multi-Trigger Support", () => {
 
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn" }, handler);
 
-      const functionMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: { id: "test-fn" },
-      }];
+      const functionMethods = [mockDiscovered(handler, { id: "test-fn" })];
 
       vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
         if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
@@ -266,25 +219,13 @@ describe("InngestModule - Multi-Trigger Support", () => {
       );
       Reflect.defineMetadata(INNGEST_FUNCTION, { id: "test-fn" }, handler);
 
-      const functionMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: { id: "test-fn" },
-      }];
+      const functionMethods = [mockDiscovered(handler, { id: "test-fn" })];
 
-      const triggerMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: [
-          { event: "test/first" },
-          { event: "test/second" },
-          { event: "test/third" }
-        ],
-      }];
+      const triggerMethods = [mockDiscovered(handler, [
+        { event: "test/first" },
+        { event: "test/second" },
+        { event: "test/third" }
+      ])];
 
       vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
         if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
@@ -323,21 +264,9 @@ describe("InngestModule - Multi-Trigger Support", () => {
         triggers: [{ event: "test/event" }],
       }, handler);
 
-      const functionMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: { id: "test-fn", triggers: [{ event: "test/event" }] },
-      }];
+      const functionMethods = [mockDiscovered(handler, { id: "test-fn", triggers: [{ event: "test/event" }] })];
 
-      const triggerMethods = [{
-        discoveredMethod: {
-          handler,
-          parentClass: { instance: {} },
-        },
-        meta: [{ cron: "0 2 * * *" }],
-      }];
+      const triggerMethods = [mockDiscovered(handler, [{ cron: "0 2 * * *" }])];
 
       vi.mocked(discoveryService.controllerMethodsWithMetaAtKey).mockImplementation((key) => {
         if (key === INNGEST_FUNCTION) return Promise.resolve(functionMethods);
