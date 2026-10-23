@@ -29,7 +29,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@golevelup/nestjs-discovery": "^4.0.0"
+    "@golevelup/nestjs-discovery": "^4.0.3"
   },
   "devDependencies": {
     "@nestjs/common": "^12.2.0",
