@@ -1,4 +1,11 @@
-import { Inject, MiddlewareConsumer, NestModule, OnApplicationShutdown } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  MiddlewareConsumer,
+  NestModule,
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+} from "@nestjs/common";
 
 import { DiscoveryModule, DiscoveryService } from "@golevelup/nestjs-discovery";
 import { type InngestFunction, Inngest } from "inngest";
@@ -71,9 +78,11 @@ export interface InngestModuleOptions {
    * Deployment mode
    * - 'serve': HTTP endpoint (default) - Inngest calls your app via HTTP
    * - 'connect': WebSocket connection - Your app connects to Inngest via WebSocket
+   * - 'none': run no functions here; the process only sends events. Use it for
+   *   an HTTP tier that leaves function execution to separate worker processes.
    * @default "serve"
    */
-  mode?: "serve" | "connect";
+  mode?: "serve" | "connect" | "none";
   /**
    * Path that inngest will be listening (only used in 'serve' mode)
    * @default "/api/inngest"
@@ -83,23 +92,112 @@ export interface InngestModuleOptions {
    * Connect mode configuration (only used in 'connect' mode)
    */
   connectOptions?: InngestConnectOptions;
+  /**
+   * How long closing the Connect worker may wait for in-flight requests to
+   * finish before giving up (only used in 'connect' mode)
+   * @default 10000
+   */
+  shutdownTimeoutMs?: number;
 }
 
-export class InngestModule implements NestModule, OnApplicationShutdown {
-  private workerConnection?: { close: () => Promise<void> };
+const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
 
+type WorkerConnection = Awaited<ReturnType<typeof connect>>;
+
+/**
+ * Owns the Connect mode worker connection.
+ *
+ * Nest runs every `onModuleDestroy` hook (database pools, caches) before any
+ * shutdown hook this module could use, so steps still running when the app
+ * closes would lose their dependencies mid-run. To drain first, call
+ * `close()` from your signal handler before `app.close()`:
+ *
+ * ```ts
+ * process.once("SIGTERM", async () => {
+ *   await app.get(InngestWorker).close();
+ *   await app.close();
+ * });
+ * ```
+ *
+ * `onApplicationShutdown` still closes the connection if nothing drained it.
+ */
+@Injectable()
+export class InngestWorker {
+  private connection?: WorkerConnection;
+  private closing?: Promise<void>;
+
+  constructor(
+    @Inject(INNGEST_OPTIONS)
+    private readonly options: Omit<InngestModuleOptions, "inngest">,
+  ) {
+    Object.defineProperty(this, 'options', { enumerable: false });
+    Object.defineProperty(this, 'connection', { enumerable: false, writable: true });
+  }
+
+  /** @internal Called by InngestModule once the connection is up. */
+  attach(connection: WorkerConnection) {
+    this.connection = connection;
+  }
+
+  /**
+   * Stops taking new requests and waits for in-flight ones to finish, up to
+   * `timeoutMs` (default `shutdownTimeoutMs`). Safe to call more than once and
+   * a no-op when this process holds no connection.
+   */
+  close(options: { timeoutMs?: number; signal?: string } = {}): Promise<void> {
+    if (!this.connection) return this.closing ?? Promise.resolve();
+    this.closing ??= this.closeWithin(
+      this.connection,
+      options.timeoutMs ?? this.options.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS,
+      options.signal,
+    );
+    return this.closing;
+  }
+
+  private async closeWithin(connection: WorkerConnection, timeoutMs: number, signal?: string) {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      console.log(
+        `[Inngest] Shutting down WebSocket connection (signal: ${signal || 'unknown'}, ` +
+        `waiting up to ${timeoutMs}ms for in-flight requests)`,
+      );
+
+      // Close with timeout to prevent hanging
+      await Promise.race([
+        connection.close(),
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`Connection close timed out after ${timeoutMs}ms`)),
+            timeoutMs,
+          );
+        }),
+      ]);
+
+      console.log('[Inngest] WebSocket connection closed successfully');
+    } catch (error) {
+      console.error('[Inngest] Error closing WebSocket connection:', error);
+      // Force cleanup even if close fails
+    } finally {
+      clearTimeout(timer);
+      this.connection = undefined;
+    }
+  }
+}
+
+export class InngestModule implements NestModule, OnApplicationBootstrap, OnApplicationShutdown {
   constructor(
     @Inject(DiscoveryService) private readonly discover: DiscoveryService,
     @Inject(INNGEST_KEY) private readonly inngest: Inngest,
     @Inject(INNGEST_OPTIONS)
     private readonly options: Omit<InngestModuleOptions, "inngest">,
+    @Inject(InngestWorker) private readonly worker: InngestWorker,
   ) {
     // Make injected dependencies non-enumerable to prevent serialization issues
     // See: https://github.com/nestjs/nest/issues/12738
     Object.defineProperty(this, 'discover', { enumerable: false });
     Object.defineProperty(this, 'inngest', { enumerable: false });
     Object.defineProperty(this, 'options', { enumerable: false });
-    Object.defineProperty(this, 'workerConnection', { enumerable: false });
+    Object.defineProperty(this, 'worker', { enumerable: false });
   }
 
   static forRoot({ inngest, ...options }: InngestModuleOptions) {
@@ -115,8 +213,9 @@ export class InngestModule implements NestModule, OnApplicationShutdown {
           provide: INNGEST_OPTIONS,
           useFactory: () => options,
         },
+        InngestWorker,
       ],
-      exports: [],
+      exports: [InngestWorker],
       global: true,
     };
   }
@@ -174,70 +273,62 @@ export class InngestModule implements NestModule, OnApplicationShutdown {
   }
 
   public async configure(consumer: MiddlewareConsumer) {
-    const mode = this.options.mode ?? "serve";
+    // Connect mode connects in onApplicationBootstrap; 'none' registers nothing.
+    if ((this.options.mode ?? "serve") !== "serve") return;
+
+    // Serve mode: traditional HTTP endpoint
+    consumer
+      .apply(
+        serve({
+          client: this.inngest,
+          functions: await this.discoverFunctions(),
+        }),
+      )
+      .forRoutes(this.options.path ?? "/api/inngest");
+  }
+
+  /**
+   * Connect mode connects here rather than in `configure()`: Nest runs every
+   * `onModuleInit` hook before this one, so no function can be dispatched
+   * before the providers it uses have initialized. It still runs before
+   * `listen()`, so the HTTP server only comes up once the worker is connected.
+   */
+  async onApplicationBootstrap() {
+    if (this.options.mode !== "connect") return;
+
     const handlers = await this.discoverFunctions();
 
-    if (mode === "connect") {
-      // Connect mode: establish persistent WebSocket connection
-      // CRITICAL: Disable Inngest's signal handling to let NestJS manage shutdown
-      console.log('[Inngest] Connecting to Inngest...');
+    // Connect mode: establish persistent WebSocket connection
+    // CRITICAL: Disable Inngest's signal handling to let NestJS manage shutdown
+    console.log('[Inngest] Connecting to Inngest...');
 
-      try {
-        const connection = await connect({
-          apps: [{
-            client: this.inngest,
-            functions: handlers,
-          }],
-          // Disable automatic signal handling - NestJS will call onApplicationShutdown
-          handleShutdownSignals: [],
-          ...this.options.connectOptions,
-        });
+    try {
+      const connection = await connect({
+        apps: [{
+          client: this.inngest,
+          functions: handlers,
+        }],
+        // Disable automatic signal handling - InngestWorker.close() and
+        // onApplicationShutdown close the connection
+        handleShutdownSignals: [],
+        ...this.options.connectOptions,
+      });
 
-        this.workerConnection = connection;
-        
-        console.log(`[Inngest] WebSocket connected successfully (ID: ${connection.connectionId})`);
-        console.log(`[Inngest] Connection state: ${connection.state}`);
-      } catch (error) {
-        throw new InngestConnectionError(
-          `Failed to connect to Inngest: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
-          `Check your network connection and Inngest configuration.`,
-          error instanceof Error ? error : undefined
-        );
-      }
-    } else {
-      // Serve mode: traditional HTTP endpoint
-      consumer
-        .apply(
-          serve({
-            client: this.inngest,
-            functions: handlers,
-          }),
-        )
-        .forRoutes(this.options.path ?? "/api/inngest");
+      this.worker.attach(connection);
+
+      console.log(`[Inngest] WebSocket connected successfully (ID: ${connection.connectionId})`);
+      console.log(`[Inngest] Connection state: ${connection.state}`);
+    } catch (error) {
+      throw new InngestConnectionError(
+        `Failed to connect to Inngest: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
+        `Check your network connection and Inngest configuration.`,
+        error instanceof Error ? error : undefined
+      );
     }
   }
 
   async onApplicationShutdown(signal?: string) {
-    // Gracefully shutdown Connect mode connection if active
-    if (this.workerConnection) {
-      try {
-        console.log(`[Inngest] Shutting down WebSocket connection (signal: ${signal || 'unknown'})`);
-        
-        // Close with timeout to prevent hanging
-        await Promise.race([
-          this.workerConnection.close(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Connection close timeout')), 10000)
-          ),
-        ]);
-        
-        console.log('[Inngest] WebSocket connection closed successfully');
-      } catch (error) {
-        console.error('[Inngest] Error closing WebSocket connection:', error);
-        // Force cleanup even if close fails
-      } finally {
-        this.workerConnection = undefined;
-      }
-    }
+    // Gracefully shutdown Connect mode connection if nothing drained it first
+    await this.worker.close({ signal });
   }
 }
