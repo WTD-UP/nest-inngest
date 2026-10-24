@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.1.0](https://github.com/WTD-UP/nest-inngest/compare/v5.0.0...v5.1.0) (2026-10-24)
+
+
+### Features
+
+* add send-only mode and a drainable Connect worker ([db212de](https://github.com/WTD-UP/nest-inngest/commit/db212dee023f94f86e762838c777a199cf1efa0e))
+
 ## [5.0.0](https://github.com/WTD-UP/nest-inngest/compare/v4.3.0...v5.0.0) (2026-10-23)
 
 
