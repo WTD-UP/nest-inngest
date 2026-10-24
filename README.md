@@ -99,6 +99,38 @@ An unofficial strongly typed [Inngest](https://inngest.com) module for Nest.js p
 
    Without `enableShutdownHooks()`, your WebSocket connections will become zombies when the app restarts or shuts down, remaining connected indefinitely in the Inngest dashboard.
 
+   The connection is opened in `onApplicationBootstrap`, after every `onModuleInit` hook has finished and before `listen()`. So no function runs before its providers have initialized, and the HTTP server only comes up once the worker is connected.
+
+   **Draining in-flight steps on shutdown**
+
+   `enableShutdownHooks()` closes the connection in `onApplicationShutdown`, which Nest runs *after* every `onModuleDestroy` hook. By then your database pools and caches may already be closed under steps that are still running. To let in-flight steps finish first, close the worker from your own signal handler before `app.close()`:
+
+   ```ts
+   // main.ts
+   import { InngestWorker } from "@wtd-up/nest-inngest";
+
+   for (const signal of ["SIGTERM", "SIGINT"] as const) {
+     process.once(signal, async () => {
+       await app.get(InngestWorker).close({ signal }); // waits up to shutdownTimeoutMs
+       await app.close(signal);
+       process.kill(process.pid, signal);
+     });
+   }
+   ```
+
+   `close()` stops the gateway sending new requests and waits for in-flight ones, up to `shutdownTimeoutMs` (default `10000`, overridable per call with `close({ timeoutMs })`). Keep it below your orchestrator's stop timeout. It is safe to call more than once and does nothing when the process holds no connection.
+
+   ### Send-only Mode
+
+   With `mode: "none"` the module neither serves nor connects, so the process runs no functions. Sending events works as usual, since `inngest.send()` only needs the event key. Use it for an HTTP tier that leaves function execution to separate worker processes running `mode: "connect"`, so the HTTP tier can scale without spending Inngest Connect worker connections:
+
+   ```ts
+   InngestModule.forRoot({
+     inngest,
+     mode: process.env.INNGEST_MODE === "connect" ? "connect" : "none",
+   })
+   ```
+
 3. Define your Inngest client and event types.
 
    Inngest v4 uses `eventType()` to define events individually, replacing the old centralized `EventSchemas` approach.
@@ -307,14 +339,16 @@ await inngest.send(
 
 ## Deployment Modes Comparison
 
-| Feature | Serve Mode (HTTP) | Connect Mode (WebSocket) |
-|---------|------------------|-------------------------|
-| Connection | Inbound (Inngest -> App) | Outbound (App -> Inngest) |
-| Latency | Higher | Lower |
-| Firewall | Requires open port | Outbound only |
-| Scaling | Horizontal | Elastic horizontal |
-| Setup | Simple | Simple |
-| Best For | Traditional deployments | High-performance, containerized apps |
+| Feature | Serve Mode (HTTP) | Connect Mode (WebSocket) | Send-only Mode (`none`) |
+|---------|------------------|-------------------------|-------------------------|
+| Connection | Inbound (Inngest -> App) | Outbound (App -> Inngest) | None |
+| Latency | Higher | Lower | n/a (runs no functions) |
+| Firewall | Requires open port | Outbound only | Outbound only (event sends) |
+| Scaling | Horizontal | Elastic horizontal, up to your plan's worker-connection limit | Unbounded by Inngest |
+| Setup | Simple | Simple | Simple |
+| Best For | Traditional deployments | High-performance, containerized apps | HTTP tier in front of separate Connect workers |
+
+Serve mode mounts `inngest/express` as Nest middleware. On the Fastify adapter it doesn't work: the middleware gets a raw `ServerResponse` without `res.status()`, and Nest 12 prefixes middleware routes with the global prefix (`/api` + `/api/inngest` → `/api/api/inngest`). Use Connect mode there.
 
 ## Migrating from nest-inngest v1.x (Inngest SDK v3)
 
