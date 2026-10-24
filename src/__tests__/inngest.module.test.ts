@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Inngest } from "inngest";
 import "reflect-metadata";
-import { InngestModule, INNGEST_TRIGGER, INNGEST_FUNCTION } from "../inngest.module";
+import { InngestModule, InngestWorker, INNGEST_TRIGGER, INNGEST_FUNCTION } from "../inngest.module";
 import { DiscoveryService } from "@golevelup/nestjs-discovery";
 import { mockDiscovered } from "./discovery.mock";
 
@@ -19,10 +19,12 @@ describe("InngestModule - Multi-Trigger Support", () => {
       providerMethodsWithMetaAtKey: vi.fn(),
     } as any;
 
+    const options = { path: "/api/inngest" };
     module = new InngestModule(
       discoveryService,
       inngest,
-      { path: "/api/inngest" }
+      options,
+      new InngestWorker(options),
     );
   });
 
