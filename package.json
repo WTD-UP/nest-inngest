@@ -32,13 +32,13 @@
     "@golevelup/nestjs-discovery": "^7.1.0"
   },
   "devDependencies": {
-    "@nestjs/common": "12.2.0",
-    "@nestjs/core": "12.2.0",
+    "@nestjs/common": "12.3.2",
+    "@nestjs/core": "12.3.2",
     "@swc/core": "1.16.20",
     "@trivago/prettier-plugin-sort-imports": "6.0.2",
-    "@types/node": "26.6.5",
+    "@types/node": "26.6.6",
     "@vitest/ui": "5.0.5",
-    "inngest": "4.25.0",
+    "inngest": "4.26.2",
     "prettier": "3.9.10",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
