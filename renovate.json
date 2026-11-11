@@ -14,7 +14,9 @@
     "labels": ["security"],
     "automerge": true
   },
-  "dependencyDashboardOSVVulnerabilitySummary": "all",
+  "dependencyDashboard": {
+    "osvVulnerabilitySummary": "all"
+  },
   "labels": ["dependencies"],
   "lockFileMaintenance": {
     "enabled": true,
