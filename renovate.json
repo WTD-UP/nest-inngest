@@ -59,6 +59,16 @@
       "matchUpdateTypes": ["major"],
       "labels": ["dependencies", "breaking-change"],
       "automerge": false
+    },
+    {
+      "description": "Automerge every update under .github/ in its own group, majors included, mirroring the org's shared config. Renovate's own check counts as green (CI may skip .github-only PRs), and tag updates without a release timestamp are not held by minimumReleaseAge.",
+      "matchFileNames": [".github/**"],
+      "groupName": "github actions",
+      "groupSlug": "github-actions",
+      "automerge": true,
+      "automergeType": "pr",
+      "internalChecksAsSuccess": true,
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
     }
   ]
 }
