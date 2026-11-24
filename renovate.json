@@ -31,7 +31,8 @@
       "groupName": "all non-major dependencies",
       "groupSlug": "all-minor-patch",
       "matchPackageNames": ["*"],
-      "matchUpdateTypes": ["minor", "patch"]
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchFileNames": ["!.github/**"]
     },
     {
       "description": "Automerge non-major devDependencies",
