@@ -28,7 +28,7 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: jdx/mise-action@v5.2.7
+      - uses: jdx/mise-action@v5.3.0
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: |
