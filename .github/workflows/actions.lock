@@ -5,13 +5,13 @@ version: 'v0.0.3'
 workflows:
     '.github/workflows/ci.yml':
         - 'actions/checkout@v7.0.1'
-        - 'jdx/mise-action@v5.2.7'
+        - 'jdx/mise-action@v5.3.0'
     '.github/workflows/release.yml':
         - 'actions/checkout@v7.0.1'
         - 'googleapis/release-please-action@v5.0.0'
-        - 'jdx/mise-action@v5.2.7'
+        - 'jdx/mise-action@v5.3.0'
     '.github/workflows/renovate.yml':
-        - 'renovatebot/github-action@v46.3.13'
+        - 'renovatebot/github-action@v46.3.15'
 dependencies:
     'actions/checkout@v7.0.1':
         ref: 'v7.0.1'
@@ -23,13 +23,13 @@ dependencies:
         commit: 'sha1-45996ed1f6d02564a971a2fa1b5860e934307cf7'
         owner_id: 16785467
         repo_id: 262236530
-    'jdx/mise-action@v5.2.7':
-        ref: 'v5.2.7'
-        commit: 'sha1-b44d12e7d0d8ee7461bb893e1b1993500433185b'
+    'jdx/mise-action@v5.3.0':
+        ref: 'v5.3.0'
+        commit: 'sha1-924e7c586e33d7d4bae9c14e26c5d22e2beb6e78'
         owner_id: 216188
         repo_id: 738284564
-    'renovatebot/github-action@v46.3.13':
-        ref: 'v46.3.13'
-        commit: 'sha1-266fef21329c44765ad42f9dea1f01f5d2d91084'
+    'renovatebot/github-action@v46.3.15':
+        ref: 'v46.3.15'
+        commit: 'sha1-ebcbb513d07ead4d9c0c2139064301db05e84a3e'
         owner_id: 38656520
         repo_id: 252754603
