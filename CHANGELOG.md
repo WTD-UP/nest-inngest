@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.1.1](https://github.com/WTD-UP/nest-inngest/compare/v5.1.0...v5.1.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **renovate:** automerge .github updates in their own group ([11522e5](https://github.com/WTD-UP/nest-inngest/commit/11522e52ad7bdc6c71413efd39b2b90a4175ed8e))
+
 ## [5.1.0](https://github.com/WTD-UP/nest-inngest/compare/v5.0.0...v5.1.0) (2026-10-24)
 
 
