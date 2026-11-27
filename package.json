@@ -32,8 +32,8 @@
     "@golevelup/nestjs-discovery": "^7.1.0"
   },
   "devDependencies": {
-    "@nestjs/common": "12.5.1",
-    "@nestjs/core": "12.5.1",
+    "@nestjs/common": "12.6.0",
+    "@nestjs/core": "12.6.0",
     "@swc/core": "1.16.22",
     "@trivago/prettier-plugin-sort-imports": "6.0.2",
     "@types/node": "26.6.6",
